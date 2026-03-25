@@ -1,0 +1,25 @@
+# Environment
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Java
+moveme-backend/target/
+*.class
+*.jar
+*.log
+
+# Node
+moveme-frontend/node_modules/
+moveme-frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+docker/mysql-data/
+docker/redis-data/

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -I -L \"https://movie.douban.com/subject/30382501/\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36\" -H \"Referer: https://movie.douban.com/\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzM4NCJ9.eyJyb2xlIjoiQURNSU4iLCJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJpYXQiOjE3NzQ0Mzk1NTEsImV4cCI6MTc3NDQ0Njc1MX0.Xxm6IL3E8mV2Wd0Y1UW8f4uGKjoLnjIaaxWpE11I_AWRDRnC3U5imkjq7BxT4jHW\")",
+      "Bash(curl -s -X POST \"http://localhost:8080/api/v1/admin/crawler/trigger?tag=%E6%9C%80%E6%96%B0&limit=10\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(docker exec:*)",
+      "Bash(curl -s \"http://localhost:8080/api/v1/admin/crawler/logs?limit=5\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:8080/api/v1/admin/crawler/logs?limit=5 -H 'Authorization: Bearer $TOKEN')",
+      "Bash(python -m json.tool)"
+    ]
+  }
+}

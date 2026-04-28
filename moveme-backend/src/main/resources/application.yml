@@ -44,12 +44,26 @@ moveme:
     access-token-expiration: 7200000    # 2小时
     refresh-token-expiration: 604800000  # 7天
 
-  # 爬虫配置
-  crawler:
-    enabled: true
-    delay-min-ms: 3000
-    delay-max-ms: 5000
-    backoff-minutes: 30
+  # 海报本地资源（Phase B 种子导入器复用）
+  poster:
+    dir: ./data/posters
+    url-prefix: /static/posters
+
+  # JSON 种子导入（Phase B）
+  seed:
+    auto-import: false
+    json-path: classpath:/seed/top250.json
+    images-dir: file:./data/images/
+    poster-out-dir: file:./data/posters/
+
+  # 推荐离线计算（Phase C）
+  recommendation:
+    enabled: false
+    bootstrap-on-start: false
+    similarity:
+      top-k: 50
+      min-score: 0.05
+      cf-min-co-users: 5
 
   # LLM 配置
   llm:

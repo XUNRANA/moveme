@@ -25,7 +25,8 @@ if "%OS%"=="Windows_NT" setlocal
 
 set WRAPPER_DIR=%~dp0.mvn\wrapper
 set WRAPPER_JAR=%WRAPPER_DIR%\maven-wrapper.jar
-set WRAPPER_URL="https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar"
+set WRAPPER_MAIN_CLASS=org.apache.maven.wrapper.MavenWrapperMain
+set WRAPPER_URL="https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.2.0/maven-wrapper-3.2.0.jar"
 
 @REM Download maven-wrapper.jar if not exist
 if not exist "%WRAPPER_JAR%" (
@@ -38,6 +39,7 @@ if not exist "%WRAPPER_JAR%" (
 )
 
 set MAVEN_PROJECTBASEDIR=%~dp0
+if "%MAVEN_PROJECTBASEDIR:~-1%"=="\" set MAVEN_PROJECTBASEDIR=%MAVEN_PROJECTBASEDIR:~0,-1%
 set MAVEN_CMD_LINE_ARGS=%*
 
 @REM Find java.exe
@@ -48,7 +50,9 @@ if defined JAVA_HOME (
 )
 
 "%JAVACMD%" ^
-  -jar "%WRAPPER_JAR%" %MAVEN_CMD_LINE_ARGS%
+  "-Dmaven.multiModuleProjectDirectory=%MAVEN_PROJECTBASEDIR%" ^
+  -classpath "%WRAPPER_JAR%" ^
+  "%WRAPPER_MAIN_CLASS%" %MAVEN_CMD_LINE_ARGS%
 if errorlevel 1 goto error
 goto end
 

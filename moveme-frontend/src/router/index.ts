@@ -19,13 +19,18 @@ const router = createRouter({
       name: 'Home',
       component: () => import('../views/Home.vue'),
     },
+    {
+      path: '/movies/:id',
+      name: 'MovieDetail',
+      component: () => import('../views/MovieDetail.vue'),
+    },
   ],
 })
 
 router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
-  const publicPages = ['/login', '/register', '/']
-  const authRequired = !publicPages.includes(to.path)
+  const isPublicRoute = to.path === '/' || to.path === '/login' || to.path === '/register' || to.path.startsWith('/movies/')
+  const authRequired = !isPublicRoute
 
   if (authRequired && !userStore.isLoggedIn) {
     next('/login')

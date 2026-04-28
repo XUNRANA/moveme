@@ -15,20 +15,42 @@ public class Movie {
     private Long id;
 
     private String doubanId;
+    private String imdbId;
+
     private String title;
-    private String originalTitle;
-    private String posterUrl;
+    private String titleCn;
+    private String titleEn;
+    private String titlePinyin;
+
+    private String summary;
+    private String summaryShort;
+
     private Short year;
+    private Short durationMinutes;
+    private String durationText;
+    private LocalDate releaseDate;
+
+    private String posterUrl;
+    private String posterLocalPath;
+    private String backdropUrl;
+    private String trailerUrl;
+    private String officialSite;
+
     private BigDecimal doubanRating;
     private Integer doubanVotes;
     private BigDecimal localRating;
     private Integer localVotes;
-    private String summary;
-    private String country;
-    private String language;
-    private String duration;
-    private LocalDate releaseDate;
-    private String imdbId;
+
+    private Integer wishCount;
+    private Integer collectCount;
+
+    private BigDecimal popularityScore;
+    private BigDecimal qualityScore;
+    private BigDecimal freshnessScore;
+
+    private LocalDateTime detailFetchedAt;
+    private LocalDateTime lastCrawledAt;
+
     private Integer status;
 
     @TableField(fill = FieldFill.INSERT)

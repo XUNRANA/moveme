@@ -1,0 +1,40 @@
+[2m13:46:28[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:46:31[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:46:32[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:46:52[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:56:39[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:56:40[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:56:40[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:56:40[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:56:40[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)
+[2m13:56:40[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError
+    at internalConnectMultiple (node:net:1114:18)
+    at afterConnectMultiple (node:net:1667:5)

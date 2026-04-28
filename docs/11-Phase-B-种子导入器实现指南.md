@@ -1,0 +1,663 @@
+# 11 - Phase B：JSON 种子导入器实现指南
+
+> 把 `data/top250.json` 250 部豆瓣经典电影一次性灌入 v2 schema 的 38 张表。
+>
+> 这份文档给的是**完整的 Java 实现规格**：包结构、DTO 字段映射、Service 流程、关键算法、坑点。
+> 具体方法体由你自己写（按 user memory，你想自己练 Java 后端核心代码）。
+
+---
+
+## 1. 目标 & 验收标准
+
+**目标**：从 `data/top250.json` 读取 250 部电影的完整数据，灌进 v2 schema 的 38 张表，幂等可重跑。
+
+**验收 SQL**（导入完成后跑一遍）：
+
+```sql
+SELECT
+  (SELECT COUNT(*) FROM movies)                       AS movies,        -- 期望: 250
+  (SELECT COUNT(*) FROM movie_top250)                 AS top250,        -- 期望: 250
+  (SELECT COUNT(*) FROM persons)                      AS persons,       -- 期望: ≥1500
+  (SELECT COUNT(*) FROM movie_actor)                  AS actors,        -- 期望: ≥2500
+  (SELECT COUNT(*) FROM movie_director)               AS directors,     -- 期望: ≥250
+  (SELECT COUNT(*) FROM movie_writer)                 AS writers,       -- 期望: ≥300
+  (SELECT COUNT(*) FROM movie_genre)                  AS m_genre,       -- 期望: ≥600
+  (SELECT COUNT(*) FROM movie_country)                AS m_country,     -- 期望: ≥300
+  (SELECT COUNT(*) FROM movie_language)               AS m_language,    -- 期望: ≥350
+  (SELECT COUNT(*) FROM movie_aka)                    AS akas,          -- 期望: ≥800
+  (SELECT COUNT(*) FROM movie_release_date)           AS release_dates, -- 期望: ≥1000
+  (SELECT COUNT(*) FROM movie_award)                  AS awards,        -- 期望: ≥400
+  (SELECT COUNT(*) FROM movie_related)                AS relateds,      -- 期望: ≥2000
+  (SELECT COUNT(*) FROM movie_comment WHERE source=0) AS comments,      -- 期望: ≥10000
+  (SELECT COUNT(*) FROM movie_rating_dist)            AS rating_dist,   -- 期望: 1250
+  (SELECT COUNT(*) FROM movie_genre_rank)             AS genre_rank;    -- 期望: ≥500
+```
+
+**抽样核对**（肖申克的救赎）：
+
+```sql
+SELECT m.title, t.rank_no, t.quote, m.douban_rating, m.wish_count, m.collect_count
+FROM movies m JOIN movie_top250 t ON m.id=t.movie_id
+WHERE m.douban_id='1292052';
+-- 期望: rank_no=1, quote='希望让人自由。', douban_rating>=9.7
+```
+
+---
+
+## 2. 模块结构
+
+```
+moveme-backend/src/main/java/com/moveme/module/seed/
+├── dto/                              # JSON → POJO 映射（Jackson）
+│   ├── SeedMovieDTO.java             # 一部电影的全部字段
+│   ├── SeedPersonRefDTO.java         # 导演/编剧/演员/celebrity_preview 共用
+│   ├── SeedRatingBreakdownDTO.java   # 5 星分布单元
+│   ├── SeedRatingBetterThanDTO.java  # 类型百分位单元
+│   ├── SeedReleaseDateDTO.java       # 上映日期 (region/date/raw)
+│   ├── SeedAkaDTO.java               # 又名（可能是 string，也可能是 obj）
+│   ├── SeedAwardDTO.java             # 奖项
+│   ├── SeedRelatedMovieDTO.java      # 相关电影
+│   └── SeedCommentDTO.java           # 短评
+├── service/
+│   ├── SeedImportService.java        # 接口
+│   └── impl/Top250SeedImportServiceImpl.java
+├── runner/
+│   └── SeedAutoRunner.java           # ApplicationRunner 自动触发
+└── util/
+    ├── SeedTextRepair.java           # 包装 TextEncodingRepairUtil
+    └── PosterFileImporter.java       # data/images/*.jpg → static/posters/
+```
+
+---
+
+## 3. JSON 字段 → DTO → DB 映射表
+
+完整映射（top250.json 字段名 → DTO → 落入哪张表/哪列）：
+
+### 3.1 顶层字段（直接进 movies 主表）
+
+| JSON 字段 | DTO 字段 | DB 落点 | 备注 |
+|---|---|---|---|
+| `subject_id` | `subjectId: String` | `movies.douban_id` | UNIQUE，幂等键 |
+| `imdb_id` | `imdbId: String` | `movies.imdb_id` | 可空 |
+| `title` | `title: String` | `movies.title` | 主标题，"肖申克的救赎 The Shawshank Redemption" |
+| `original_title` | `originalTitle: String` | `movies.title_en` | 原片名 |
+| `summary` | `summary: String` | `movies.summary` | 完整剧情简介 |
+| — | — | `movies.summary_short` | 截断 200 字（Java 算） |
+| `year` | `year: Integer` | `movies.year` | |
+| `release_date` | `releaseDate: String` | `movies.release_date` | LocalDate.parse, 可空 |
+| `cover_image` | `coverImage: String` | `movies.poster_url` | 远程 URL |
+| `cover_image_local` | `coverImageLocal: String` | `movies.poster_local_path` | 转 `/static/posters/{douban_id}.jpg` |
+| `rating` | `doubanRating: Double` | `movies.douban_rating` | DECIMAL(3,1) |
+| `votes` | `doubanVotes: Long` | `movies.douban_votes` | |
+| `wish_count` | `wishCount: Integer` | `movies.wish_count` | 想看人数 |
+| `collect_count` | `collectCount: Integer` | `movies.collect_count` | 看过人数 |
+| `runtime` | `runtimeText: String` | `movies.duration_text` | "142分钟" |
+| — | — | `movies.duration_minutes` | 用正则提取 `\d+` |
+| `title_pinyin` 或自算 | — | `movies.title_pinyin` | 可用 pinyin4j（推荐）或留空 |
+
+### 3.2 数组字段（拆关联表）
+
+| JSON 字段 | 落入关联表 | 字典表 | 处理逻辑 |
+|---|---|---|---|
+| `genres: ["剧情","犯罪"]` | `movie_genre` | `genres` | 字典缺失则 INSERT |
+| `countries: ["美国"]` | `movie_country` | `countries` | 同上 |
+| `languages: ["英语"]` | `movie_language` | `languages` | 同上 |
+| `tags: []` | `movie_tag` | `tags` | top250 多为空，留接口 |
+| `aka: ["月黑高飞","刺激1995"]` | `movie_aka` | — | 直接 INSERT，每条一行 |
+| `release_dates: [{date,region,raw}]` | `movie_release_date` | — | 多地多日 |
+| `awards: [{...}]` | `movie_award` | `award_ceremonies`（可空关联） | 见 3.4 |
+| `related_movies: [{...}]` | `movie_related` | — | 见 3.5 |
+| `comments: [{...}]` | `movie_comment` | — | source=0，见 3.6 |
+| `rating_breakdown: [{...}]` | `movie_rating_dist` | — | 5 星分布 |
+| `rating_better_than: [{...}]` | `movie_genre_rank` | — | 类型百分位 |
+
+### 3.3 人物字段（统一灌入 persons + 关联）
+
+JSON 里的 `directors / writers / casts / director_details / writer_details / actor_details / celebrity_preview` 都包含人物，需要**统一去重灌入 persons 表**。
+
+`celebrity_preview / director_details / writer_details / actor_details` 通常是这种结构：
+
+```json
+[
+  {
+    "douban_person_id": "1054521",
+    "name": "蒂姆·罗宾斯",
+    "name_en": "Tim Robbins",
+    "avatar": "https://...",
+    "avatar_local": "...",
+    "profile_url": "https://www.douban.com/personage/...",
+    "role": "饰 安迪·杜佛兰 Andy Dufresne",
+    "sort_order": 1
+  }
+]
+```
+
+**处理流程**：
+
+1. 收集本部电影所有人物，按 `douban_person_id` 去重 → upsert `persons` 表 → 得到 `Map<doubanPersonId, persons.id>`。
+2. 按角色拆三张关联表：
+   - `director_details` → `movie_director(movie_id, person_id, sort_order)`
+   - `writer_details` → `movie_writer(...)`
+   - `actor_details` 或 `celebrity_preview` → `movie_actor(movie_id, person_id, role_name, sort_order, is_lead)`
+     - `is_lead = (sort_order <= 5) ? 1 : 0`
+
+**`douban_person_id` 缺失的兜底**：少数老电影 person 没有 ID，用 `name + name_en` 拼成虚拟 key（例如 `_synthetic_:蒂姆·罗宾斯|Tim Robbins`），让 `persons.douban_person_id` 存这个合成 key 也保 UNIQUE。
+
+### 3.4 awards 字段映射
+
+```json
+{
+  "ceremony": "第67届奥斯卡金像奖",
+  "category": "最佳影片",
+  "status": "提名",            // "获奖" / "提名" / null
+  "url": "https://...",
+  "recipients": [{"douban_person_id":"...","name":"..."}]   // 可空
+}
+```
+
+| JSON | DB |
+|---|---|
+| `ceremony` | `movie_award.ceremony_text` + 尝试用 `LIKE '%奥斯卡%'` 匹配 `award_ceremonies.id` |
+| `category` | `movie_award.category` |
+| `status` | `movie_award.status` ENUM('won','nominated','unknown')。映射：'获奖'→won，'提名'→nominated，其他→unknown |
+| `url` | `movie_award.award_url` |
+| `recipients[0].douban_person_id` | `movie_award.recipient_person_id`（要求人物已 upsert） |
+| `recipients[*].name` (拼接) | `movie_award.recipient_text` |
+
+### 3.5 related_movies 字段映射
+
+```json
+{
+  "subject_id": "1291546",
+  "title": "霸王别姬",
+  "rating": 9.6,
+  "cover_url": "https://...",
+  "sort_order": 1
+}
+```
+
+| JSON | DB |
+|---|---|
+| `subject_id` | `movie_related.related_douban_id` |
+| `title` | `movie_related.related_title` |
+| `rating` | `movie_related.related_rating` |
+| `cover_url` | `movie_related.related_cover_url` |
+| `sort_order` | `movie_related.sort_order` |
+| — | `movie_related.related_movie_id` 第一遍可能 NULL |
+
+**关键**：导入完所有 250 部后，跑一次回填：
+
+```sql
+UPDATE movie_related r
+JOIN movies m ON r.related_douban_id = m.douban_id
+SET r.related_movie_id = m.id
+WHERE r.related_movie_id IS NULL;
+```
+
+### 3.6 comments 字段映射（一部电影 ~50 条）
+
+```json
+{
+  "comment_id": "9876543210",
+  "user_name": "豆瓣用户A",
+  "user_avatar": "https://...",
+  "user_location": "北京",
+  "rating": 5,
+  "rating_label": "力荐",
+  "content": "希望让人自由...",
+  "votes": 12345,
+  "posted_at": "2020-05-01 12:34:56",
+  "url": "https://movie.douban.com/review/..."
+}
+```
+
+| JSON | DB |
+|---|---|
+| — | `movie_comment.source = 0`（豆瓣源固定） |
+| `comment_id` | `movie_comment.douban_comment_id`（UNIQUE） |
+| `user_name` | `movie_comment.author_name` |
+| `user_avatar` | `movie_comment.author_avatar` |
+| `user_location` | `movie_comment.author_location` |
+| `rating` | `movie_comment.rating` (1-5) |
+| `rating_label` | `movie_comment.rating_label` |
+| `content` | `movie_comment.content` |
+| `votes` | `movie_comment.votes` |
+| `posted_at` | `movie_comment.posted_at`（LocalDateTime） |
+| `url` | `movie_comment.source_url` |
+
+**注意**：`douban_comment_id UNIQUE` 防重导。重跑时 `INSERT IGNORE` 或 `ON DUPLICATE KEY UPDATE`。
+
+---
+
+## 4. SeedImportService 接口
+
+```java
+package com.moveme.module.seed.service;
+
+public interface SeedImportService {
+
+    /**
+     * 全量导入 top250.json。失败一部不影响其他部，错误写入 import_logs.errors。
+     * @return 导入结果统计
+     */
+    ImportResult importAll();
+
+    /**
+     * 单部导入（用于调试 / 重跑某一部）
+     */
+    void importOne(SeedMovieDTO dto, ImportContext ctx);
+
+    /**
+     * 全量重导（清空除 users 外的所有业务数据）
+     * 慎用：会 TRUNCATE 30+ 张表
+     */
+    ImportResult reimport();
+
+    record ImportResult(
+        int total,
+        int success,
+        int fail,
+        int personsUpserted,
+        int commentsImported,
+        long elapsedMs,
+        List<String> errors
+    ) {}
+}
+```
+
+---
+
+## 5. 导入流水线（伪代码）
+
+```java
+@Service
+public class Top250SeedImportServiceImpl implements SeedImportService {
+
+    @Autowired private MovieMapper movieMapper;
+    @Autowired private PersonMapper personMapper;
+    // ... 其他 30+ mapper
+    @Autowired private TransactionTemplate transactionTemplate;
+    @Autowired private ObjectMapper objectMapper;
+    @Autowired private TextEncodingRepairUtil textRepair;
+    @Autowired private PosterFileImporter posterImporter;
+    @Autowired private ImportLogMapper importLogMapper;
+
+    @Value("${moveme.seed.json-path}")
+    private Resource jsonResource;
+
+    @Override
+    public ImportResult importAll() {
+        ImportLog log = startLog("TOP250_JSON", jsonResource.getURI().toString());
+        List<SeedMovieDTO> movies = loadJson();   // List 反序列化
+
+        ImportContext ctx = new ImportContext();   // 跨电影共享 person 缓存
+        int ok = 0, fail = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (SeedMovieDTO dto : movies) {
+            try {
+                // 每部一个独立事务（一部失败不影响其他）
+                transactionTemplate.execute(status -> {
+                    importOne(dto, ctx);
+                    return null;
+                });
+                ok++;
+            } catch (Exception e) {
+                fail++;
+                errors.add("subject_id=" + dto.getSubjectId() + ": " + e.getMessage());
+                log.error("Import failed for {}: {}", dto.getSubjectId(), e.getMessage(), e);
+            }
+        }
+
+        // 全量结束后回填 movie_related.related_movie_id
+        backfillRelatedMovieIds();
+
+        // 全量结束后聚合 persons.movie_count / avg_movie_rating
+        aggregatePersonStats();
+
+        finishLog(log, movies.size(), ok, fail, errors);
+        return new ImportResult(movies.size(), ok, fail, ctx.personsUpserted, ctx.commentsImported,
+                System.currentTimeMillis() - log.getStartedAt().toEpochSecond(...) * 1000, errors);
+    }
+
+    @Override
+    public void importOne(SeedMovieDTO dto, ImportContext ctx) {
+        // 0. 文本预处理（修复 mojibake）
+        textRepair.repairInPlace(dto);
+
+        // 1. upsert 所有人物（director_details + writer_details + actor_details + celebrity_preview）
+        Map<String, Long> personIdByDoubanId = upsertAllPersons(dto, ctx);
+
+        // 2. movie 主行（INSERT ... ON DUPLICATE KEY UPDATE）
+        Long movieId = upsertMovie(dto);
+
+        // 3. 字典查/新增（小心并发，可加 lock 或忽略，250 部串行无并发）
+        Set<Integer> genreIds    = ensureDict(dto.getGenres(),    genreMapper);
+        Set<Integer> countryIds  = ensureDict(dto.getCountries(), countryMapper);
+        Set<Integer> languageIds = ensureDict(dto.getLanguages(), languageMapper);
+        Set<Integer> tagIds      = ensureDict(dto.getTags(),      tagMapper);
+
+        // 4. 关联表（先 DELETE WHERE movie_id=? 再 INSERT，幂等）
+        replaceMovieGenre   (movieId, genreIds);
+        replaceMovieCountry (movieId, countryIds);
+        replaceMovieLanguage(movieId, languageIds);
+        replaceMovieTag     (movieId, tagIds);
+        replaceMovieDirectors(movieId, dto.getDirectorDetails(), personIdByDoubanId);
+        replaceMovieWriters  (movieId, dto.getWriterDetails(),   personIdByDoubanId);
+        replaceMovieActors   (movieId, pickActors(dto),          personIdByDoubanId);
+        replaceMovieAka      (movieId, dto.getAka());
+        replaceMovieReleaseDates(movieId, dto.getReleaseDates());
+
+        // 5. 富字段
+        replaceMovieAwards   (movieId, dto.getAwards(), personIdByDoubanId);
+        replaceMovieRelated  (movieId, dto.getRelatedMovies());      // related_movie_id 留 NULL
+        replaceMovieComments (movieId, dto.getComments(), ctx);
+        replaceMovieRatingDist(movieId, dto.getRatingBreakdown());
+        replaceMovieGenreRank(movieId, dto.getRatingBetterThan());
+
+        // 6. Top250 排名
+        upsertTop250(movieId, dto.getTop250Rank(), dto.getTop250ListTitle(), dto.getTop250Quote());
+
+        // 7. 海报本地化（拷贝 data/images/*.jpg → static/posters/{douban_id}.jpg）
+        posterImporter.copy(dto, movieId);
+
+        // 8. 标记已抓详情，避免后续爬虫又抓一次
+        movieMapper.updateDetailFetchedAt(movieId, LocalDateTime.now());
+    }
+}
+```
+
+---
+
+## 6. 关键算法 / 工具方法
+
+### 6.1 upsertMovie
+
+```java
+private Long upsertMovie(SeedMovieDTO dto) {
+    Movie existing = movieMapper.selectByDoubanId(dto.getSubjectId());
+    Movie m = mapToEntity(dto);   // DTO → Entity
+    if (existing == null) {
+        movieMapper.insert(m);
+        return m.getId();
+    } else {
+        m.setId(existing.getId());
+        m.setCreatedAt(existing.getCreatedAt());   // 不覆盖创建时间
+        movieMapper.updateById(m);
+        return existing.getId();
+    }
+}
+```
+
+### 6.2 upsertAllPersons
+
+```java
+private Map<String, Long> upsertAllPersons(SeedMovieDTO dto, ImportContext ctx) {
+    // 1. 收集所有人物引用（去重）
+    Map<String, SeedPersonRefDTO> refs = new LinkedHashMap<>();
+    addAll(refs, dto.getDirectorDetails());
+    addAll(refs, dto.getWriterDetails());
+    addAll(refs, dto.getActorDetails());        // 主演详情（如果有）
+    addAll(refs, dto.getCelebrityPreview());    // 演员预览
+    for (SeedAwardDTO a : safe(dto.getAwards())) {
+        addAll(refs, a.getRecipients());
+    }
+
+    // 2. 对每个人物 upsert（先查 ctx 缓存，再查 DB，最后 insert）
+    Map<String, Long> result = new HashMap<>();
+    for (SeedPersonRefDTO ref : refs.values()) {
+        String key = personKey(ref);   // douban_person_id 或合成 key
+        Long id = ctx.personCache.get(key);
+        if (id == null) {
+            Person p = personMapper.selectByDoubanId(key);
+            if (p == null) {
+                p = mapPerson(ref);
+                personMapper.insert(p);
+                ctx.personsUpserted++;
+            } else {
+                // 用更新数据补全（有时新条目带 avatar，老条目没有）
+                if (p.getAvatarUrl() == null && ref.getAvatar() != null) {
+                    p.setAvatarUrl(ref.getAvatar());
+                    personMapper.updateById(p);
+                }
+            }
+            id = p.getId();
+            ctx.personCache.put(key, id);
+        }
+        result.put(key, id);
+    }
+    return result;
+}
+
+private String personKey(SeedPersonRefDTO ref) {
+    if (StringUtils.hasText(ref.getDoubanPersonId())) return ref.getDoubanPersonId();
+    return "_synthetic_:" + safe(ref.getName()) + "|" + safe(ref.getNameEn());
+}
+```
+
+### 6.3 关联表 replace 模式（幂等保证）
+
+```java
+private void replaceMovieActors(Long movieId, List<SeedPersonRefDTO> actors, Map<String,Long> idMap) {
+    movieActorMapper.deleteByMovieId(movieId);   // 清空老的
+    if (CollectionUtils.isEmpty(actors)) return;
+
+    int order = 0;
+    for (SeedPersonRefDTO ref : actors) {
+        Long personId = idMap.get(personKey(ref));
+        if (personId == null) continue;          // 数据异常容忍
+        order++;
+        MovieActor row = new MovieActor();
+        row.setMovieId(movieId);
+        row.setPersonId(personId);
+        row.setRoleName(ref.getRole());
+        row.setSortOrder(order);
+        row.setIsLead(order <= 5 ? 1 : 0);
+        movieActorMapper.insert(row);
+    }
+}
+```
+
+### 6.4 ensureDict（字典懒插入）
+
+```java
+private Integer ensureDictOne(String name, BaseMapper<? extends DictEntity> mapper, Class<?> clazz) {
+    if (!StringUtils.hasText(name)) return null;
+    String trimmed = name.trim();
+    DictEntity existing = mapper.selectOne(new QueryWrapper<>().eq("name", trimmed));
+    if (existing != null) return existing.getId();
+    DictEntity row = (DictEntity) clazz.getDeclaredConstructor().newInstance();
+    row.setName(trimmed);
+    mapper.insert(row);
+    return row.getId();
+}
+```
+
+为简化，可以直接为每个字典写一个具体方法，不必反射。
+
+### 6.5 backfillRelatedMovieIds
+
+全量结束后跑一次：
+
+```java
+private void backfillRelatedMovieIds() {
+    movieRelatedMapper.backfillFromMovies();
+    // SQL: UPDATE movie_related r
+    //      JOIN movies m ON r.related_douban_id = m.douban_id
+    //      SET r.related_movie_id = m.id
+    //      WHERE r.related_movie_id IS NULL
+}
+```
+
+### 6.6 aggregatePersonStats
+
+```java
+private void aggregatePersonStats() {
+    personMapper.recalcMovieCount();
+    // SQL:
+    // UPDATE persons p SET movie_count = (
+    //   SELECT COUNT(DISTINCT movie_id) FROM (
+    //     SELECT person_id, movie_id FROM movie_director
+    //     UNION
+    //     SELECT person_id, movie_id FROM movie_actor
+    //     UNION
+    //     SELECT person_id, movie_id FROM movie_writer
+    //   ) t WHERE t.person_id = p.id
+    // );
+    personMapper.recalcAvgRating();
+    // 类似，JOIN movies 按 person_id 聚合 AVG(douban_rating)
+}
+```
+
+---
+
+## 7. SeedAutoRunner
+
+```java
+@Component
+@ConditionalOnProperty(name = "moveme.seed.auto-import", havingValue = "true")
+public class SeedAutoRunner implements ApplicationRunner {
+
+    @Autowired private SeedImportService seedImportService;
+    @Autowired private MovieMapper movieMapper;
+
+    @Override
+    public void run(ApplicationArguments args) {
+        long count = movieMapper.selectCount(null);
+        if (count >= 50) {
+            log.info("Skip seed import: movies table already has {} rows", count);
+            return;
+        }
+        log.info("Top250 seed import started");
+        ImportResult r = seedImportService.importAll();
+        log.info("Top250 seed import finished: ok={} fail={} persons={} comments={} elapsed={}ms",
+                r.success(), r.fail(), r.personsUpserted(), r.commentsImported(), r.elapsedMs());
+    }
+}
+```
+
+---
+
+## 8. PosterFileImporter
+
+```java
+@Component
+public class PosterFileImporter {
+
+    @Value("${moveme.seed.images-dir}")
+    private Resource imagesDir;
+
+    @Value("${moveme.seed.poster-out-dir}")
+    private Resource posterOutDir;
+
+    public void copy(SeedMovieDTO dto, Long movieId) {
+        // data/images/ 里的文件名通常是 "{rank}_{title}.jpg"
+        // 我们改成按 douban_id 落到 static/posters/{douban_id}.jpg
+        String src = dto.getCoverImageLocal();   // "data/images/001_肖申克的救赎.jpg"
+        if (!StringUtils.hasText(src)) return;
+        Path source = Paths.get(src);
+        if (!Files.exists(source)) {
+            log.warn("Poster source not found: {}", source);
+            return;
+        }
+        Path target = Paths.get(posterOutDir.getFile().getAbsolutePath(),
+                                dto.getSubjectId() + ".jpg");
+        Files.createDirectories(target.getParent());
+        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+}
+```
+
+---
+
+## 9. application.yml 新增配置
+
+```yaml
+moveme:
+  seed:
+    auto-import: true
+    json-path: classpath:/seed/top250.json
+    images-dir: file:./data/images/
+    poster-out-dir: file:./moveme-backend/static/posters/
+```
+
+---
+
+## 10. 资源文件准备
+
+```bash
+# JSON 拷到 resources 打进 jar（部署稳定）
+cp data/top250.json moveme-backend/src/main/resources/seed/top250.json
+
+# 海报先留外部路径，由 application.yml 指向 ./data/images/
+# 启动时由 PosterFileImporter 拷到 ./moveme-backend/static/posters/
+```
+
+---
+
+## 11. 坑点 & 经验
+
+### 11.1 mojibake 修复
+JSON 里偶有 `Ã©` 之类乱码，已有的 `TextEncodingRepairUtil` 能修，确保导入前对所有字符串字段跑一遍。
+
+### 11.2 NULL 安全
+`celebrity_preview` 等字段在某些电影里可能不存在，DTO 用 `@JsonInclude(Include.NON_NULL)` + `Optional` 或者 `safeList(...)` 工具方法兜底，别 NPE。
+
+### 11.3 同名人物 vs 同 ID 人物
+**绝对不要按 name 去重 persons**，必须按 `douban_person_id`。两个张三是不同 person。
+
+### 11.4 actor 主从来源选择
+有的电影 `actor_details` 全，有的只有 `celebrity_preview`。Service 写 `pickActors(dto)`：优先 actor_details，其次 celebrity_preview。
+
+### 11.5 release_date 主表 vs 关联表
+`movies.release_date` 取**最早**一次（用 `release_dates` 数组里最小日期）。关联表 `movie_release_date` 全保留。
+
+### 11.6 award 的 recipient 关联
+recipients 数组里的 person 必须先 upsert 进 persons 表，否则 `recipient_person_id` 外键挂掉。`upsertAllPersons` 已经把 awards 里的 recipients 收进来。
+
+### 11.7 transaction propagation
+全局 `@Transactional` 不行 —— 一部失败回滚整批。必须用 `TransactionTemplate` 或 `@Transactional(propagation = REQUIRES_NEW)` 在 Service 内调用，且要走 self-proxy（`AopContext.currentProxy()` 或注入自己），否则同类内部调用走不到代理。
+
+### 11.8 douban_comment_id 缺失
+极少数评论 JSON 没 comment_id，跳过该评论或合成 `_synthetic_:{movie_id}_{user_name}_{posted_at_hash}`。
+
+### 11.9 字典并发
+250 部串行执行没问题。如果未来并行化，`ensureDict` 要加锁或用 `INSERT ... ON DUPLICATE KEY UPDATE name=name` + 重查。
+
+### 11.10 重跑场景
+`reimport()` 实现：
+
+```sql
+-- 顺序很重要：先关联，再主表
+TRUNCATE movie_genre;
+TRUNCATE movie_country;
+-- ... 所有关联和富字段表
+TRUNCATE movie_top250;
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE movies;
+TRUNCATE persons;
+SET FOREIGN_KEY_CHECKS = 1;
+-- 然后再调用 importAll()
+```
+
+不要 TRUNCATE `users`、`genres`/`countries`/`languages`/`award_ceremonies` 这些字典 —— 它们由 02-seed-data.sql 初始化。
+
+---
+
+## 12. 实现顺序建议
+
+1. 先写 `SeedMovieDTO` 等所有 DTO，能 `objectMapper.readValue(...)` 成功反序列化（写个 main 方法验证 250 个对象都能加载）。
+2. 写 `upsertMovie + upsertAllPersons`，跑通"插入 1 部电影 + 它的演员"。
+3. 写关联表的 7 个 replace 方法。
+4. 写富字段（aka / award / comment / rating_dist / genre_rank / related）。
+5. 写 `upsertTop250` + `PosterFileImporter`。
+6. 写 `SeedAutoRunner`，整体重启验证 250 部全进。
+7. 最后写 `backfillRelatedMovieIds + aggregatePersonStats`。
+
+---
+
+## 13. 完成后做什么
+
+- 跑第 1 节的验收 SQL，所有数字达标 → Phase B 完成。
+- 进入 [12 - Phase C：推荐特征计算实现指南](./12-Phase-C-推荐特征计算实现指南.md)。

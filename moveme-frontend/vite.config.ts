@@ -21,6 +21,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // 本地海报：后端把下载好的图片挂在 /static/posters/** 下
+      '/static': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })

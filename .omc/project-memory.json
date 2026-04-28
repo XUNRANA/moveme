@@ -1,0 +1,338 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777303721013,
+  "projectRoot": "C:\\Users\\xunra\\Desktop\\moveme",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 4,
+      "lastAccessed": 1777303720978,
+      "keyFiles": [
+        "movie_annual_2025.json",
+        "movie_chart.json",
+        "movie_chart_with_types_top100.json",
+        "top250.json"
+      ]
+    },
+    "docker": {
+      "path": "docker",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1777303720978,
+      "keyFiles": [
+        "docker-compose.yml"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 5,
+      "lastAccessed": 1777303720979,
+      "keyFiles": [
+        "01-项目概述与架构设计.md",
+        "02-环境搭建与运行指南.md",
+        "03-Phase1-基础骨架开发文档.md",
+        "04-开发计划与实现指南.md",
+        "05-Phase2-豆瓣爬虫开发文档.md"
+      ]
+    },
+    "images": {
+      "path": "images",
+      "purpose": null,
+      "fileCount": 250,
+      "lastAccessed": 1777303720981,
+      "keyFiles": [
+        "100_唐伯虎点秋香 唐伯虎點秋香.jpg",
+        "101_狩猎 Jagten.jpg",
+        "102_幽灵公主 もののけ姫.jpg",
+        "103_甜蜜蜜.jpg",
+        "104_寄生虫 기생충.jpg"
+      ]
+    },
+    "moveme-backend": {
+      "path": "moveme-backend",
+      "purpose": null,
+      "fileCount": 17,
+      "lastAccessed": 1777303720982,
+      "keyFiles": [
+        "backend-run.err.log",
+        "backend-run.out.log",
+        "backend.err",
+        "backend.log",
+        "mvnw"
+      ]
+    },
+    "moveme-frontend": {
+      "path": "moveme-frontend",
+      "purpose": null,
+      "fileCount": 15,
+      "lastAccessed": 1777303720982,
+      "keyFiles": [
+        "auto-imports.d.ts",
+        "components.d.ts",
+        "dev.err",
+        "dev.log",
+        "home.png"
+      ]
+    },
+    "moveme-backend\\data": {
+      "path": "moveme-backend\\data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1777303720984,
+      "keyFiles": []
+    },
+    "moveme-frontend\\dist": {
+      "path": "moveme-frontend\\dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1777303720985,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "moveme-frontend\\node_modules": {
+      "path": "moveme-frontend\\node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1777303720985,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "moveme-frontend\\src\\views\\MovieDetail.vue",
+      "accessCount": 9,
+      "lastAccessed": 1777362875290,
+      "type": "directory"
+    },
+    {
+      "path": "docker\\mysql\\init\\01-schema.sql",
+      "accessCount": 7,
+      "lastAccessed": 1777305805172,
+      "type": "file"
+    },
+    {
+      "path": "moveme-frontend\\src\\views\\Home.vue",
+      "accessCount": 7,
+      "lastAccessed": 1777362895210,
+      "type": "file"
+    },
+    {
+      "path": "moveme-frontend\\src\\api\\movies.ts",
+      "accessCount": 4,
+      "lastAccessed": 1777362847940,
+      "type": "file"
+    },
+    {
+      "path": "moveme-frontend\\src",
+      "accessCount": 4,
+      "lastAccessed": 1777362899810,
+      "type": "directory"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\movie\\entity\\Movie.java",
+      "accessCount": 3,
+      "lastAccessed": 1777304106927,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\crawler\\service\\impl\\DoubanCrawlerServiceImpl.java",
+      "accessCount": 3,
+      "lastAccessed": 1777304115325,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\crawler\\parser\\DoubanMovieParser.java",
+      "accessCount": 3,
+      "lastAccessed": 1777304116043,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\crawler\\scheduler\\CrawlerScheduler.java",
+      "accessCount": 3,
+      "lastAccessed": 1777304117073,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\resources\\application.yml",
+      "accessCount": 3,
+      "lastAccessed": 1777305443617,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\movie\\mapper\\MovieMapper.java",
+      "accessCount": 2,
+      "lastAccessed": 1776844204272,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\common\\constant\\CrawlerConstants.java",
+      "accessCount": 2,
+      "lastAccessed": 1776844357344,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\crawler\\service\\CrawlerService.java",
+      "accessCount": 2,
+      "lastAccessed": 1776844368485,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\crawler\\controller\\CrawlerController.java",
+      "accessCount": 2,
+      "lastAccessed": 1776844479172,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\config\\WebMvcConfig.java",
+      "accessCount": 2,
+      "lastAccessed": 1776844501088,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\config\\SecurityConfig.java",
+      "accessCount": 2,
+      "lastAccessed": 1776844508438,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\config\\MyBatisPlusConfig.java",
+      "accessCount": 2,
+      "lastAccessed": 1776844554963,
+      "type": "file"
+    },
+    {
+      "path": "moveme-frontend\\vite.config.ts",
+      "accessCount": 2,
+      "lastAccessed": 1776845319066,
+      "type": "file"
+    },
+    {
+      "path": "docker\\mysql\\init\\03-crawler-upgrade.sql",
+      "accessCount": 2,
+      "lastAccessed": 1777304106201,
+      "type": "file"
+    },
+    {
+      "path": "data\\top250.json",
+      "accessCount": 2,
+      "lastAccessed": 1777304114601,
+      "type": "file"
+    },
+    {
+      "path": "docker\\mysql\\init\\02-seed-data.sql",
+      "accessCount": 2,
+      "lastAccessed": 1777305607507,
+      "type": "file"
+    },
+    {
+      "path": "docker/mysql/init/01-schema.sql",
+      "accessCount": 2,
+      "lastAccessed": 1777305792918,
+      "type": "directory"
+    },
+    {
+      "path": "docs\\01-项目概述与架构设计.md",
+      "accessCount": 2,
+      "lastAccessed": 1777306804953,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\pom.xml",
+      "accessCount": 1,
+      "lastAccessed": 1776843991792,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java\\com\\moveme\\module\\crawler\\service\\PosterDownloaderService.java",
+      "accessCount": 1,
+      "lastAccessed": 1776844341917,
+      "type": "file"
+    },
+    {
+      "path": "moveme-backend\\src\\main\\java",
+      "accessCount": 1,
+      "lastAccessed": 1776844529752,
+      "type": "directory"
+    },
+    {
+      "path": "moveme-frontend\\src\\utils\\request.ts",
+      "accessCount": 1,
+      "lastAccessed": 1776845307016,
+      "type": "file"
+    },
+    {
+      "path": "moveme-frontend\\package.json",
+      "accessCount": 1,
+      "lastAccessed": 1776845373563,
+      "type": "directory"
+    },
+    {
+      "path": "docker\\docker-compose.yml",
+      "accessCount": 1,
+      "lastAccessed": 1777305443311,
+      "type": "file"
+    },
+    {
+      "path": "docs\\02-环境搭建与运行指南.md",
+      "accessCount": 1,
+      "lastAccessed": 1777306595157,
+      "type": "file"
+    },
+    {
+      "path": "docs\\04-开发计划与实现指南.md",
+      "accessCount": 1,
+      "lastAccessed": 1777306595278,
+      "type": "file"
+    },
+    {
+      "path": "docs\\03-Phase1-基础骨架开发文档.md",
+      "accessCount": 1,
+      "lastAccessed": 1777306604563,
+      "type": "file"
+    },
+    {
+      "path": "docs\\05-Phase2-豆瓣爬虫开发文档.md",
+      "accessCount": 1,
+      "lastAccessed": 1777306604778,
+      "type": "file"
+    },
+    {
+      "path": "docs\\README.md",
+      "accessCount": 1,
+      "lastAccessed": 1777306711402,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

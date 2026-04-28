@@ -1,0 +1,595 @@
+# 12 - Phase C：推荐特征计算实现指南
+
+> Phase B 灌完数据后，把推荐用的特征/相似度/共现/打分**全部离线预计算**到数据库，让 Phase E 在线推理 < 200ms。
+>
+> 本文档讲包结构、各 Calculator 的接口、调度策略、调试触发。算法公式看 [05 - 推荐算法详解](./05-推荐算法详解.md)。
+
+---
+
+## 1. 目标 & 验收
+
+完成后能跑通这套 SQL：
+
+```sql
+-- 1) 电影特征都算完了
+SELECT COUNT(*) FROM movie_features;
+-- 期望 = movies 总数（250 部时 = 250）
+
+-- 2) 内容相似度
+SELECT algorithm, COUNT(*) FROM movie_similarity GROUP BY algorithm;
+-- 期望:
+--   CONTENT  ~ 12500 (250 * top50)
+--   CF_ITEM  初期可能 0（站内还无评分）
+
+-- 3) 推荐打分
+SELECT
+  COUNT(CASE WHEN popularity_score > 0 THEN 1 END) AS pop_done,
+  COUNT(CASE WHEN quality_score    > 0 THEN 1 END) AS qua_done,
+  COUNT(CASE WHEN freshness_score  > 0 THEN 1 END) AS fre_done
+FROM movies;
+-- 期望都 ≈ 250
+
+-- 4) 抽一部看相似电影（肖申克）
+SELECT b.title, s.score, s.rank_no
+FROM movie_similarity s
+JOIN movies a ON s.movie_id_a = a.id
+JOIN movies b ON s.movie_id_b = b.id
+WHERE a.douban_id='1292052' AND s.algorithm='CONTENT'
+ORDER BY s.rank_no LIMIT 10;
+-- 期望前几名是阿甘正传/楚门的世界/活着 等高分剧情片
+```
+
+---
+
+## 2. 模块结构
+
+```
+moveme-backend/src/main/java/com/moveme/module/recommendation/
+├── feature/
+│   ├── MovieFeatureBuilder.java          → 写 movie_features
+│   ├── UserFeatureBuilder.java           → 写 user_features + user_*_pref
+│   ├── PopularityScorer.java
+│   ├── QualityScorer.java
+│   └── FreshnessScorer.java
+├── similarity/
+│   ├── ContentSimilarityCalculator.java  → movie_similarity (CONTENT)
+│   ├── CFItemSimilarityCalculator.java   → movie_similarity (CF_ITEM)
+│   └── CoOccurrenceCalculator.java       → movie_co_occurrence
+├── cluster/
+│   └── KMeansClusterer.java              → 写 movie_features.cluster_id（可选）
+├── util/
+│   ├── VectorUtils.java                  → cosine / jaccard / L2 normalize
+│   └── FeatureSnapshot.java              → 内存中快照
+└── scheduler/
+    └── FeatureScheduler.java             → @Scheduled 串起来
+```
+
+---
+
+## 3. 接口约定
+
+每个 Calculator 都实现统一接口（便于 admin 触发 + 测试）：
+
+```java
+public interface FeaturePipeline {
+    /**
+     * 全量重算并落库。幂等。
+     * @return 处理条目数（电影对数/用户数等，按实现）
+     */
+    int rebuildAll();
+
+    /**
+     * 单实体增量更新（如新评分入库后只算这部电影的相似度）
+     * 默认实现可以直接调 rebuildAll()，先做对再做快。
+     */
+    default int rebuildOne(Long entityId) {
+        return rebuildAll();
+    }
+}
+```
+
+---
+
+## 4. MovieFeatureBuilder
+
+```java
+@Service
+public class MovieFeatureBuilder implements FeaturePipeline {
+
+    @Autowired private MovieMapper movieMapper;
+    @Autowired private MovieGenreMapper movieGenreMapper;
+    @Autowired private MovieActorMapper movieActorMapper;
+    @Autowired private MovieDirectorMapper movieDirectorMapper;
+    @Autowired private MovieWriterMapper movieWriterMapper;
+    @Autowired private MovieFeaturesMapper movieFeaturesMapper;
+    @Autowired private ObjectMapper objectMapper;
+
+    @Override
+    @Transactional
+    public int rebuildAll() {
+        List<Long> movieIds = movieMapper.selectAllIds();
+        int N = movieIds.size();
+
+        // 1. 加载所有 movie-genre 关联，统计 DF
+        Map<Long, List<Integer>> mGenres   = movieGenreMapper.loadAllAsMap();
+        Map<Integer, Integer>    genreDF   = computeDF(mGenres);
+        Map<Integer, String>     genreName = ...; // genre_id → name
+
+        // 2. 加载 director/writer/actor，按角色加权
+        Map<Long, Map<Long, Double>> mCast = loadCastWithWeights();
+        Map<Long, Integer>           castDF = computeDFForCast(mCast);
+
+        // 3. 对每部电影算 vec
+        for (Long mid : movieIds) {
+            Map<String, Double> genreVec = tfidf(mGenres.get(mid), genreDF, genreName, N);
+            Map<String, Double> castVec  = tfidfWeighted(mCast.get(mid), castDF, N);
+            VectorUtils.l2Normalize(genreVec);
+            VectorUtils.l2Normalize(castVec);
+
+            int year = movieMapper.selectYear(mid);
+            int decade = (year == 0) ? 0 : (year / 10) * 10;
+
+            MovieFeatures f = new MovieFeatures();
+            f.setMovieId(mid);
+            f.setGenreVector(objectMapper.writeValueAsString(genreVec));
+            f.setCastVector(objectMapper.writeValueAsString(castVec));
+            f.setDecade((short) decade);
+            f.setFeatureVersion("v1");
+            movieFeaturesMapper.upsert(f);
+        }
+        return N;
+    }
+}
+```
+
+**性能**：250 部约 50ms。一次性把数据全装进内存计算，避免 N+1。
+
+---
+
+## 5. ContentSimilarityCalculator
+
+```java
+@Service
+public class ContentSimilarityCalculator implements FeaturePipeline {
+
+    @Value("${moveme.recommendation.similarity.top-k:50}")
+    private int topK;
+
+    @Value("${moveme.recommendation.similarity.min-score:0.05}")
+    private double minScore;
+
+    private static final Map<String, Double> WEIGHTS = Map.of(
+        "genre",    0.45,
+        "cast",     0.30,
+        "decade",   0.10,
+        "country",  0.10,
+        "language", 0.05
+    );
+
+    @Override
+    @Transactional
+    public int rebuildAll() {
+        List<Long> ids = movieMapper.selectAllIds();
+        int N = ids.size();
+
+        // 加载所有 features 进内存
+        Map<Long, MovieFeatureSnapshot> snaps = loadSnapshots(ids);
+
+        // 清空旧的 CONTENT 行
+        movieSimilarityMapper.deleteByAlgorithm("CONTENT");
+
+        int inserted = 0;
+        for (Long a : ids) {
+            // a 与所有 b 的相似度
+            List<Pair<Long, Double>> sims = new ArrayList<>(N);
+            MovieFeatureSnapshot fa = snaps.get(a);
+            for (Long b : ids) {
+                if (b.equals(a)) continue;
+                MovieFeatureSnapshot fb = snaps.get(b);
+                double s = computeSim(fa, fb);
+                if (s >= minScore) sims.add(Pair.of(b, s));
+            }
+            sims.sort((x, y) -> Double.compare(y.getRight(), x.getRight()));
+            int rank = 1;
+            for (Pair<Long, Double> p : sims.stream().limit(topK).toList()) {
+                MovieSimilarity row = new MovieSimilarity();
+                row.setMovieIdA(a);
+                row.setMovieIdB(p.getLeft());
+                row.setAlgorithm("CONTENT");
+                row.setScore(BigDecimal.valueOf(p.getRight()).setScale(4, RoundingMode.HALF_UP));
+                row.setRankNo((short) rank++);
+                movieSimilarityMapper.insert(row);
+                inserted++;
+            }
+        }
+        return inserted;
+    }
+
+    private double computeSim(MovieFeatureSnapshot a, MovieFeatureSnapshot b) {
+        double s = 0;
+        s += WEIGHTS.get("genre")    * VectorUtils.cosine(a.genreVec(), b.genreVec());
+        s += WEIGHTS.get("cast")     * VectorUtils.cosine(a.castVec(),  b.castVec());
+        s += WEIGHTS.get("decade")   * (a.decade() == b.decade() ? 1.0 : 0.0);
+        s += WEIGHTS.get("country")  * VectorUtils.jaccard(a.countries(), b.countries());
+        s += WEIGHTS.get("language") * (Collections.disjoint(a.languages(), b.languages()) ? 0.0 : 1.0);
+        return s;
+    }
+}
+```
+
+---
+
+## 6. CFItemSimilarityCalculator
+
+冷启动期 `ratings` 几乎为空，本 calculator 跑出来近似空表，没关系，留架子。
+
+```java
+@Service
+public class CFItemSimilarityCalculator implements FeaturePipeline {
+
+    @Value("${moveme.recommendation.similarity.cf-min-co-users:5}")
+    private int minCoUsers;
+
+    @Value("${moveme.recommendation.similarity.top-k:50}")
+    private int topK;
+
+    @Override
+    @Transactional
+    public int rebuildAll() {
+        // 加载评分矩阵: movie_id → Map<user_id, score>
+        Map<Long, Map<Long, Double>> mr = loadMovieRatingsWithFavorites();
+        if (mr.isEmpty()) return 0;
+
+        movieSimilarityMapper.deleteByAlgorithm("CF_ITEM");
+
+        Map<Long, List<Pair<Long, Double>>> simByA = new HashMap<>();
+        List<Long> ids = new ArrayList<>(mr.keySet());
+
+        for (int i = 0; i < ids.size(); i++) {
+            for (int j = i + 1; j < ids.size(); j++) {
+                Long a = ids.get(i), b = ids.get(j);
+                Double sim = cosineOnCommon(mr.get(a), mr.get(b), minCoUsers);
+                if (sim == null) continue;
+                simByA.computeIfAbsent(a, k -> new ArrayList<>()).add(Pair.of(b, sim));
+                simByA.computeIfAbsent(b, k -> new ArrayList<>()).add(Pair.of(a, sim));
+            }
+        }
+
+        int total = 0;
+        for (Map.Entry<Long, List<Pair<Long, Double>>> e : simByA.entrySet()) {
+            List<Pair<Long, Double>> top = e.getValue().stream()
+                .sorted((x,y) -> Double.compare(y.getRight(), x.getRight()))
+                .limit(topK).toList();
+            int rank = 1;
+            for (Pair<Long, Double> p : top) {
+                insertSimRow(e.getKey(), p.getLeft(), "CF_ITEM", p.getRight(), rank++);
+                total++;
+            }
+        }
+        return total;
+    }
+
+    private Double cosineOnCommon(Map<Long,Double> a, Map<Long,Double> b, int minCo) {
+        Set<Long> common = new HashSet<>(a.keySet());
+        common.retainAll(b.keySet());
+        if (common.size() < minCo) return null;
+        double dot = 0, na = 0, nb = 0;
+        for (Long u : common) {
+            double xa = a.get(u), xb = b.get(u);
+            dot += xa * xb; na += xa*xa; nb += xb*xb;
+        }
+        return (na == 0 || nb == 0) ? null : dot / (Math.sqrt(na) * Math.sqrt(nb));
+    }
+}
+```
+
+**`loadMovieRatingsWithFavorites()` 实现要点**：
+- ratings 表所有行：`(movie_id, user_id, score)` 直接装
+- favorites status=1：当作 score=7（弱信号），用 0.5 权重
+- 同一对 (movie, user) 同时有 rating 和 favorite，用 rating 优先
+
+---
+
+## 7. CoOccurrenceCalculator
+
+```java
+@Service
+public class CoOccurrenceCalculator implements FeaturePipeline {
+
+    @Override
+    @Transactional
+    public int rebuildAll() {
+        // 用户 → 喜欢的电影集合
+        // 喜欢 = ratings.score >= 7  OR  favorites.status = 1
+        Map<Long, Set<Long>> userLikes = loadUserLikes();
+        if (userLikes.isEmpty()) return 0;
+
+        int totalUsers = userLikes.size();
+
+        // count(a) = 喜欢 a 的用户数
+        Map<Long, Integer> countA = new HashMap<>();
+        for (Set<Long> likes : userLikes.values())
+            for (Long m : likes) countA.merge(m, 1, Integer::sum);
+
+        // co_count(a,b) = 同时喜欢 a 和 b 的用户数
+        Map<Long, Map<Long, Integer>> co = new HashMap<>();
+        for (Set<Long> likes : userLikes.values()) {
+            List<Long> list = new ArrayList<>(likes);
+            for (int i = 0; i < list.size(); i++) {
+                for (int j = i + 1; j < list.size(); j++) {
+                    Long a = list.get(i), b = list.get(j);
+                    if (a > b) { Long t = a; a = b; b = t; }
+                    co.computeIfAbsent(a, k -> new HashMap<>()).merge(b, 1, Integer::sum);
+                }
+            }
+        }
+
+        movieCoOccurrenceMapper.truncate();
+
+        int inserted = 0;
+        for (Map.Entry<Long, Map<Long, Integer>> ea : co.entrySet()) {
+            Long a = ea.getKey();
+            for (Map.Entry<Long, Integer> eb : ea.getValue().entrySet()) {
+                Long b = eb.getKey();
+                int cab = eb.getValue();
+                if (cab < 2) continue;
+                double pa  = (double) countA.get(a) / totalUsers;
+                double pb  = (double) countA.get(b) / totalUsers;
+                double pab = (double) cab / totalUsers;
+                double pmi = Math.log(pab / (pa * pb));
+                // 双向插入（a→b 和 b→a 都要）
+                insertCo(a, b, cab, pmi);
+                insertCo(b, a, cab, pmi);
+                inserted += 2;
+            }
+        }
+        return inserted;
+    }
+}
+```
+
+---
+
+## 8. UserFeatureBuilder
+
+```java
+@Service
+public class UserFeatureBuilder implements FeaturePipeline {
+
+    @Autowired private RatingMapper ratingMapper;
+    @Autowired private FavoriteMapper favoriteMapper;
+    @Autowired private ViewHistoryMapper viewHistoryMapper;
+    @Autowired private MovieFeaturesMapper movieFeaturesMapper;
+    @Autowired private UserFeaturesMapper userFeaturesMapper;
+    @Autowired private UserGenrePrefMapper userGenrePrefMapper;
+    @Autowired private UserPersonPrefMapper userPersonPrefMapper;
+
+    @Override
+    @Transactional
+    public int rebuildAll() {
+        List<Long> userIds = userMapper.selectAllIds();
+        for (Long uid : userIds) rebuildOne(uid);
+        return userIds.size();
+    }
+
+    @Override
+    @Transactional
+    public int rebuildOne(Long userId) {
+        // 1. 收集用户行为 + 权重
+        Map<Long, Double> movieWeight = new HashMap<>();
+        for (Rating r : ratingMapper.selectByUserId(userId)) {
+            double w = ratingWeight(r.getScore());
+            if (w != 0) movieWeight.merge(r.getMovieId(), w, Double::sum);
+        }
+        for (Favorite f : favoriteMapper.selectByUserId(userId)) {
+            double w = (f.getStatus() == 1) ? 0.6 : 0.3;
+            movieWeight.merge(f.getMovieId(), w, Double::sum);
+        }
+        for (ViewHistory v : viewHistoryMapper.selectRecent(userId, 100)) {
+            movieWeight.merge(v.getMovieId(), 0.2, Double::sum);
+        }
+
+        // 2. 加权聚合电影 features
+        Map<String, Double> userGenreVec = new LinkedHashMap<>();
+        Map<String, Double> userCastVec  = new LinkedHashMap<>();
+        for (var e : movieWeight.entrySet()) {
+            MovieFeatureSnapshot mf = loadFeature(e.getKey());
+            double w = e.getValue();
+            mf.genreVec().forEach((k, v) -> userGenreVec.merge(k, v * w, Double::sum));
+            mf.castVec().forEach((k, v)  -> userCastVec.merge (k, v * w, Double::sum));
+        }
+        VectorUtils.l2Normalize(userGenreVec);
+        VectorUtils.l2Normalize(userCastVec);
+
+        // 3. 写 user_features
+        upsertUserFeatures(userId, userGenreVec, userCastVec, movieWeight);
+
+        // 4. 拍平到 user_genre_pref / user_person_pref（只存正值）
+        upsertUserGenrePref(userId, userGenreVec);
+        upsertUserPersonPref(userId, userCastVec);
+
+        return 1;
+    }
+
+    private double ratingWeight(int score) {
+        if (score >= 8) return 1.0;
+        if (score == 7) return 0.5;
+        if (score >= 5) return 0.0;
+        return -0.5;
+    }
+}
+```
+
+---
+
+## 9. PopularityScorer / QualityScorer / FreshnessScorer
+
+简洁版（一个类够了）：
+
+```java
+@Service
+public class MovieScorer implements FeaturePipeline {
+
+    @Autowired private MovieMapper movieMapper;
+    @Autowired private MovieAwardMapper movieAwardMapper;
+    @Autowired private MovieTop250Mapper top250Mapper;
+
+    @Override
+    @Transactional
+    public int rebuildAll() {
+        LocalDate now = LocalDate.now();
+        List<Movie> movies = movieMapper.selectList(null);
+        for (Movie m : movies) {
+            double pop  = popularity(m, now);
+            double qual = quality(m);
+            double fre  = freshness(m, now);
+            movieMapper.updateScores(m.getId(), pop, qual, fre);
+        }
+        return movies.size();
+    }
+
+    double popularity(Movie m, LocalDate now) {
+        if (m.getDoubanVotes() == null || m.getDoubanRating() == null) return 0;
+        double base = Math.log10(m.getDoubanVotes() + 1) * m.getDoubanRating().doubleValue();
+        double age  = (m.getReleaseDate() == null) ? 0
+            : ChronoUnit.DAYS.between(m.getReleaseDate(), now) / 365.0;
+        return base * Math.pow(0.5, age / 5.0);
+    }
+
+    double quality(Movie m) {
+        double q = (m.getDoubanRating() == null) ? 0 : m.getDoubanRating().doubleValue();
+        boolean wonOscarBest = movieAwardMapper.existsWonBestPicture(m.getId());
+        if (wonOscarBest) q += 0.3;
+        Integer rank = top250Mapper.selectRank(m.getId());
+        if (rank != null) q += 0.1 * (251 - rank) / 250.0;
+        boolean anyMajor = movieAwardMapper.existsAnyMajorWon(m.getId());
+        if (anyMajor) q += 0.2;
+        return q;
+    }
+
+    double freshness(Movie m, LocalDate now) {
+        if (m.getReleaseDate() == null) return 0;
+        double yrs = ChronoUnit.DAYS.between(m.getReleaseDate(), now) / 365.0;
+        return Math.exp(-yrs / 3.0);
+    }
+}
+```
+
+---
+
+## 10. FeatureScheduler
+
+```java
+@Component
+@ConditionalOnProperty(name = "moveme.recommendation.enabled", havingValue = "true")
+public class FeatureScheduler {
+
+    @Autowired private MovieFeatureBuilder mfb;
+    @Autowired private ContentSimilarityCalculator csc;
+    @Autowired private CFItemSimilarityCalculator cfsc;
+    @Autowired private CoOccurrenceCalculator coc;
+    @Autowired private MovieScorer scorer;
+    @Autowired private UserFeatureBuilder ufb;
+
+    /** 每周一 02:00 重算电影特征 */
+    @Scheduled(cron = "0 0 2 ? * MON")
+    public void weeklyMovieFeatures() {
+        log.info("Weekly job: MovieFeatureBuilder start");
+        int n = mfb.rebuildAll();
+        log.info("Weekly job: MovieFeatureBuilder done, {} movies", n);
+    }
+
+    /** 每周一 02:30 重算内容相似度 */
+    @Scheduled(cron = "0 30 2 ? * MON")
+    public void weeklyContentSim() { csc.rebuildAll(); }
+
+    /** 每周一 03:00 重算 CF 相似度 */
+    @Scheduled(cron = "0 0 3 ? * MON")
+    public void weeklyCFSim() { cfsc.rebuildAll(); }
+
+    /** 每周一 03:30 重算共现 */
+    @Scheduled(cron = "0 30 3 ? * MON")
+    public void weeklyCoOccur() { coc.rebuildAll(); }
+
+    /** 每天 04:00 重算 popularity/quality/freshness */
+    @Scheduled(cron = "0 0 4 * * ?")
+    public void dailyRescore() { scorer.rebuildAll(); }
+
+    /** 每天 04:30 重算用户偏好 */
+    @Scheduled(cron = "0 30 4 * * ?")
+    public void dailyUserFeatures() { ufb.rebuildAll(); }
+}
+```
+
+启动类记得加 `@EnableScheduling`。
+
+---
+
+## 11. 启用 + 调试
+
+### 11.1 application.yml
+
+```yaml
+moveme:
+  recommendation:
+    enabled: true
+    similarity:
+      top-k: 50
+      min-score: 0.05
+      cf-min-co-users: 5
+    weights:
+      content:
+        genre: 0.45
+        cast: 0.30
+        decade: 0.10
+        country: 0.10
+        language: 0.05
+```
+
+### 11.2 调试触发
+
+不想等到周一，可以加临时 ApplicationRunner：
+
+```java
+@Component
+@ConditionalOnProperty(name = "moveme.recommendation.bootstrap-on-start", havingValue = "true")
+public class BootstrapRecommendationOnStart implements ApplicationRunner {
+    @Autowired private MovieFeatureBuilder mfb;
+    @Autowired private ContentSimilarityCalculator csc;
+    @Autowired private MovieScorer scorer;
+
+    @Override public void run(ApplicationArguments args) {
+        if (movieMapper.selectCount(null) < 100) return;   // 数据不够别白跑
+        log.info("Bootstrap recommendation: building features");
+        mfb.rebuildAll();
+        csc.rebuildAll();
+        scorer.rebuildAll();
+        log.info("Bootstrap recommendation: done");
+    }
+}
+```
+
+或者临时把 cron 改成 `*/30 * * * * ?`（每 30 秒）跑几次再改回。
+
+---
+
+## 12. 增量重算（行为驱动）
+
+```java
+@EventListener
+@Async
+public void onRatingChanged(RatingChangedEvent e) {
+    userFeatureBuilder.rebuildOne(e.getUserId());
+    // 可选：累积一定数量后再触发 movie_similarity 增量
+}
+```
+
+`RatingChangedEvent` 在 RatingService 里 publish。`@Async` 需要 `@EnableAsync`。
+
+---
+
+## 13. 验证
+
+按第 1 节验收 SQL 跑一遍，所有计数达标即 Phase C 完成。
+
+进入 Phase D（[20 - 后续路线图](./20-后续路线图.md)）：开始写 RecommendationService + REST API，把这些预计算结果消费起来。

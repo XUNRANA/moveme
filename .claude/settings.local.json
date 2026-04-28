@@ -8,7 +8,22 @@
       "Bash(curl -s \"http://localhost:8080/api/v1/admin/crawler/logs?limit=5\" -H \"Authorization: Bearer $TOKEN\")",
       "Bash(python3 -m json.tool)",
       "Bash(curl -s http://localhost:8080/api/v1/admin/crawler/logs?limit=5 -H 'Authorization: Bearer $TOKEN')",
-      "Bash(python -m json.tool)"
+      "Bash(python -m json.tool)",
+      "Bash(rm -f service/CrawlerService.java service/PosterDownloaderService.java service/impl/DoubanCrawlerServiceImpl.java parser/DoubanMovieParser.java scheduler/CrawlerScheduler.java controller/CrawlerController.java)",
+      "Bash(rmdir service/impl service parser scheduler controller)",
+      "Bash(./mvnw.cmd clean *)",
+      "Bash(npm run *)",
+      "Bash(docker compose *)",
+      "Bash(./mvnw.cmd test *)",
+      "Bash(./mvnw.cmd spring-boot:run)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/v1/movies/genres)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(curl -s http://localhost:8080/api/v1/movies/genres)",
+      "Bash(curl -s \"http://localhost:8080/api/v1/movies?page=1&size=5\")",
+      "Bash(curl -s -X POST http://localhost:8080/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}')",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:5173/api/v1/movies/genres)",
+      "Bash(curl -s http://localhost:5173/)"
     ]
   }
 }

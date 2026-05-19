@@ -1,0 +1,53 @@
+/* MovieMe Design System — Light Theme */
+
+:root {
+  /* ── Background ── */
+  --bg-primary:     #ffffff;
+  --bg-surface:     #f8f9fa;
+  --bg-elevated:    #ffffff;
+
+  /* ── Text ── */
+  --text-primary:   #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted:     #999999;
+
+  /* ── Accent ── */
+  --accent-red:     #E50914;
+  --accent-red-hover: #c4070f;
+  --accent-gold:    #d4a017;
+  --accent-gold-dim: #b8941e;
+  --accent-glow:    rgba(229, 9, 20, 0.15);
+  --accent-gold-glow: rgba(212, 160, 23, 0.15);
+
+  /* ── Surface ── */
+  --glass:          rgba(0, 0, 0, 0.03);
+  --glass-hover:    rgba(0, 0, 0, 0.06);
+  --glass-border:   rgba(0, 0, 0, 0.08);
+  --glass-border-hover: rgba(0, 0, 0, 0.15);
+
+  /* ── Typography ── */
+  --font-display:   'HarmonyOS Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-body:      'HarmonyOS Sans SC', 'Noto Sans SC', system-ui, sans-serif;
+  --font-mono:      'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ── Spacing ── */
+  --radius-sm:      6px;
+  --radius-md:      12px;
+  --radius-lg:      20px;
+  --radius-pill:    99px;
+
+  /* ── Shadows ── */
+  --shadow-card:    0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-hover:   0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow-glow:    0 0 30px var(--accent-glow);
+
+  /* ── Transitions ── */
+  --ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast:  0.15s;
+  --duration-normal: 0.3s;
+  --duration-slow:  0.5s;
+
+  /* ── Layout ── */
+  --navbar-height:  64px;
+  --content-max:    1400px;
+}

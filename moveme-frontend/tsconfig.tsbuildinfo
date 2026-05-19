@@ -1,1 +1,0 @@
-{"root":["./src/env.d.ts","./src/main.ts","./src/api/movies.ts","./src/router/index.ts","./src/stores/user.ts","./src/utils/request.ts","./src/app.vue","./src/views/home.vue","./src/views/login.vue","./src/views/moviedetail.vue","./src/views/register.vue"],"version":"5.6.3"}

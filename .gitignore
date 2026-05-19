@@ -8,13 +8,16 @@
 
 # Java
 moveme-backend/target/
+moveme-backend/.m2/
 *.class
 *.jar
 *.log
+*.err
 
 # Node
 moveme-frontend/node_modules/
 moveme-frontend/dist/
+tsconfig.tsbuildinfo
 
 # OS
 .DS_Store
@@ -23,3 +26,31 @@ Thumbs.db
 # Docker volumes
 docker/mysql-data/
 docker/redis-data/
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude Code / MCP
+.omc/
+.playwright-mcp/
+.claude/
+
+# Crawler (standalone utility, not part of main app)
+crawler/
+
+# Root-level working files
+*.png
+*.jpg
+missing_data.txt
+前端UI审计报告.md
+后端设计审计报告.md
+数据库与豆瓣爬虫审计报告.md
+数据来源.txt
+豆瓣年度榜单网址.txt
+
+# Frontend dev logs
+moveme-frontend/dev.err
+moveme-frontend/dev.log
+moveme-frontend/preview.err
+moveme-frontend/preview.log

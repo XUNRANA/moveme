@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/movies/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/movies/genres").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/persons/**").permitAll()
                 // 静态资源（本地海报等）
                 .requestMatchers(HttpMethod.GET, "/static/**").permitAll()
                 .requestMatchers(HttpMethod.HEAD, "/static/**").permitAll()

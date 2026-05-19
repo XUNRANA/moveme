@@ -36,18 +36,4 @@ public interface MovieMapper extends BaseMapper<Movie> {
     @Select("SELECT l.name FROM movie_language ml JOIN languages l ON l.id = ml.language_id " +
             "WHERE ml.movie_id = #{movieId} ORDER BY l.name ASC")
     List<String> selectLanguageNamesByMovieId(@Param("movieId") Long movieId);
-
-    @Select("SELECT COUNT(*) FROM movies " +
-            "WHERE status = 1 " +
-            "AND MATCH(title, title_cn, title_en, summary) AGAINST(#{keyword} IN NATURAL LANGUAGE MODE)")
-    long countByKeyword(@Param("keyword") String keyword);
-
-    @Select("SELECT * FROM movies " +
-            "WHERE status = 1 " +
-            "AND MATCH(title, title_cn, title_en, summary) AGAINST(#{keyword} IN NATURAL LANGUAGE MODE) " +
-            "ORDER BY douban_rating DESC, douban_votes DESC, updated_at DESC " +
-            "LIMIT #{limit} OFFSET #{offset}")
-    List<Movie> fullTextSearch(@Param("keyword") String keyword,
-                               @Param("offset") int offset,
-                               @Param("limit") int limit);
 }

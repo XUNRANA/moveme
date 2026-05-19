@@ -20,7 +20,6 @@ public class Movie {
     private String title;
     private String titleCn;
     private String titleEn;
-    private String titlePinyin;
 
     private String summary;
     private String summaryShort;
@@ -32,8 +31,6 @@ public class Movie {
 
     private String posterUrl;
     private String posterLocalPath;
-    private String backdropUrl;
-    private String trailerUrl;
     private String officialSite;
 
     private BigDecimal doubanRating;
@@ -49,7 +46,6 @@ public class Movie {
     private BigDecimal freshnessScore;
 
     private LocalDateTime detailFetchedAt;
-    private LocalDateTime lastCrawledAt;
 
     private Integer status;
 

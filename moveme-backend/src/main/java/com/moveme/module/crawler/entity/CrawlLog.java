@@ -1,6 +1,7 @@
 package com.moveme.module.crawler.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -20,6 +21,19 @@ public class CrawlLog {
     private Integer successCount;
     private Integer failCount;
     private String errorMessage;
+
+    @TableField(exist = false)
+    private String paramsJson;
+
+    @TableField(exist = false)
+    private String pythonOutputFile;
+
+    @TableField(exist = false)
+    private Integer moviesImported;
+
+    @TableField(exist = false)
+    private String errors;
+
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
 }

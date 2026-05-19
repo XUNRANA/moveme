@@ -117,6 +117,7 @@ CREATE TABLE movies (
     freshness_score   DECIMAL(7,3) DEFAULT 0 COMMENT '新鲜度：基于 release_date',
 
     detail_fetched_at DATETIME NULL COMMENT '最近一次成功抓详情页的时间',
+    syn_scanned_at    DATETIME NULL COMMENT 'syn_ 人物解析已扫描过此电影',
     last_crawled_at   DATETIME NULL,
     status            TINYINT NOT NULL DEFAULT 1 COMMENT '0=隐藏,1=正常',
     created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -288,6 +289,15 @@ CREATE TABLE movie_related (
     FOREIGN KEY (related_movie_id) REFERENCES movies(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='豆瓣相关推荐电影';
 
+CREATE TABLE movie_play_link (
+    id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+    movie_id          BIGINT NOT NULL,
+    platform          VARCHAR(50)  COMMENT '平台名称，如：腾讯视频、咪咕视频、bilibili',
+    url               VARCHAR(500) COMMENT '播放链接',
+    INDEX idx_movie (movie_id),
+    FOREIGN KEY (movie_id) REFERENCES movies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流媒体播放链接';
+
 CREATE TABLE movie_comment (
     id                BIGINT PRIMARY KEY AUTO_INCREMENT,
     movie_id          BIGINT NOT NULL,
@@ -311,6 +321,18 @@ CREATE TABLE movie_comment (
     FOREIGN KEY (movie_id) REFERENCES movies(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)  REFERENCES users(id)  ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='电影短评（豆瓣 + 站内）';
+
+CREATE TABLE comment_vote (
+    id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+    comment_id BIGINT NOT NULL,
+    user_id    BIGINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_comment_user (comment_id, user_id),
+    INDEX idx_comment (comment_id),
+    INDEX idx_user (user_id),
+    FOREIGN KEY (comment_id) REFERENCES movie_comment(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES users(id)         ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论点赞';
 
 CREATE TABLE movie_rating_dist (
     movie_id   BIGINT NOT NULL,
@@ -544,3 +566,67 @@ CREATE TABLE import_logs (
     finished_at  DATETIME,
     INDEX idx_source_started (source, started_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='种子/批量导入日志';
+
+-- =====================================================================
+-- 9. 年度榜单域
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS movie_annual (
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    annual_year  SMALLINT     NOT NULL COMMENT '年度，如2025',
+    board_title  VARCHAR(100) NOT NULL COMMENT '榜单分类名，如评分最高华语电影',
+    board_order  INT          DEFAULT 0 COMMENT '榜单在页面上的显示顺序',
+    movie_id     BIGINT       NOT NULL COMMENT '关联movies.id',
+    rank_no      INT          COMMENT '排名',
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_year_board_movie (annual_year, board_title, movie_id),
+    KEY idx_year (annual_year),
+    CONSTRAINT fk_annual_movie FOREIGN KEY (movie_id) REFERENCES movies (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='年度榜单';
+
+-- =====================================================================
+-- 种子数据：字典 + 默认管理员
+-- =====================================================================
+
+-- 类型字典（豆瓣常见 30 类）
+INSERT INTO genres (name) VALUES
+ ('剧情'),('喜剧'),('动作'),('爱情'),('科幻'),('悬疑'),('恐怖'),('动画'),
+ ('犯罪'),('冒险'),('奇幻'),('战争'),('历史'),('传记'),('音乐'),('歌舞'),
+ ('纪录片'),('家庭'),('武侠'),('古装'),('西部'),('运动'),('情色'),('灾难'),
+ ('黑色电影'),('儿童'),('短片'),('真人秀'),('脱口秀'),('同性');
+
+-- 国家字典（top250.json 里出现的常见国家/地区）
+INSERT INTO countries (name) VALUES
+ ('美国'),('中国大陆'),('中国香港'),('中国台湾'),('日本'),('韩国'),('英国'),
+ ('法国'),('德国'),('意大利'),('西班牙'),('印度'),('俄罗斯'),('加拿大'),
+ ('澳大利亚'),('泰国'),('伊朗'),('巴西'),('墨西哥'),('阿根廷'),('瑞典'),
+ ('丹麦'),('荷兰'),('爱尔兰'),('新西兰');
+
+-- 语言字典
+INSERT INTO languages (name) VALUES
+ ('汉语普通话'),('英语'),('粤语'),('日语'),('韩语'),('法语'),('德语'),
+ ('意大利语'),('西班牙语'),('俄语'),('印地语'),('泰语'),('阿拉伯语'),
+ ('葡萄牙语'),('希伯来语'),('拉丁语'),('波斯语');
+
+-- 颁奖典礼字典
+INSERT INTO award_ceremonies (name, organization) VALUES
+ ('奥斯卡金像奖', '美国电影艺术与科学学院'),
+ ('金球奖', '好莱坞外国记者协会'),
+ ('英国电影学院奖', '英国电影和电视艺术学院 BAFTA'),
+ ('戛纳电影节', '法国戛纳国际电影节组委会'),
+ ('威尼斯电影节', '威尼斯国际电影节组委会'),
+ ('柏林国际电影节', '柏林国际电影节组委会'),
+ ('金马奖', '台湾电影金马奖执行委员会'),
+ ('金像奖', '香港电影金像奖协会'),
+ ('华表奖', '中国电影华表奖'),
+ ('百花奖', '中国电影百花奖'),
+ ('金鸡奖', '中国电影金鸡奖'),
+ ('日本电影学院奖', '日本电影学院');
+
+-- 默认管理员（密码 admin123，BCrypt cost=12）
+INSERT INTO users (username, password, email, nickname, role, status) VALUES
+ ('admin',
+  '$2a$12$i9auj7VDf1e4SamjYQuM7eRAQm8CRfCn0OHre5MurWd4f17G./KuG',
+  'admin@moveme.com',
+  '管理员',
+  1, 1);

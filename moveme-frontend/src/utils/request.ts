@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
 
 const request = axios.create({
@@ -24,8 +23,7 @@ request.interceptors.response.use(
   (response) => {
     const res = response.data
     if (res.code !== 200) {
-      ElMessage.error(res.message || '请求失败')
-      // Token 过期，跳转登录
+      console.error('[API]', res.message || '请求失败')
       if (res.code === 401) {
         const userStore = useUserStore()
         userStore.logout()
@@ -41,7 +39,7 @@ request.interceptors.response.use(
       userStore.logout()
       window.location.href = '/login'
     }
-    ElMessage.error(error.response?.data?.message || '网络错误')
+    console.error('[API]', error.response?.data?.message || '网络错误')
     return Promise.reject(error)
   }
 )

@@ -1,22 +1,35 @@
 # MovieMe
 
-> 电影浏览 + 个性化推荐 + 管理后台的全栈学习项目。
+> **AI 驱动的电影推荐系统** — 接入小米 MiMO 大模型，用 LLM 打通"理解用户意图 → 匹配电影 → 生成个性化推荐理由"全链路。
 >
-> Spring Boot 3.4 · Vue 3.5 · MySQL 8 · Redis 7 · Docker · MiMO LLM · 40+ 张表 · 25 个前端组件 · 40+ REST 端点
+> Spring Boot 3.4 · Vue 3.5 · MySQL 8 · Redis 7 · MiMO LLM · 40+ 张表 · 25 个前端组件 · 40+ REST 端点
+
+---
+
+## 效果预览
+
+| | |
+|:---:|:---:|
+| ![首页](screenshots/homepage_hero_user_xunrana.png) | ![AI 推荐门户](screenshots/ai_recommend_portal.png) |
+| **沉浸式首页** — 焦点海报 + 多维榜单 | **AI 推荐入口** — 一键推荐 + 多轮对话 |
+| ![AI 口味推荐](screenshots/ai_recommend_chat_movie_taste.png) | ![AI 通用问答](screenshots/ai_recommend_chat_general_query.png) |
+| **个性化推荐** — 读取用户画像，生成推荐理由 | **自由对话** — MiMO 大模型多轮上下文 |
+| ![电影详情](screenshots/movie_detail_farewell_my_concubine.png) | ![管理后台](screenshots/admin_dashboard_system_overview.png) |
+| **电影详情** — 评分分布 / 演职人员 / 相似推荐 | **管理后台** — 系统监控 / 用户管理 |
 
 ---
 
 ## 这是什么
 
-基于豆瓣 Top250 数据的电影站，含：
+基于豆瓣 Top250 数据的全栈电影站，核心亮点是 **MiMO 大模型驱动的 AI 推荐系统**：
 
+- **AI 推荐（MiMO 大模型）**：多轮聊天对话 + 基于用户画像的一键个性化推荐，单次请求消耗 8000-15000 Token，后处理层自动注入电影跳转链接
 - **电影库**：列表 / 详情 / 全文搜索 / 多榜单（Top250 / 分类 / 年度 / 专题）
 - **人物档案**：导演/演员/编剧三档作品归类
 - **评论体系**：豆瓣源（爬虫导入）+ 站内源（用户撰写）+ 点赞 + 热度/时间排序
 - **用户中心**：个人档案、收藏（想看/已看）、评分、浏览历史、口味档案（类型/演员偏好）
 - **管理后台**：系统统计、用户管理（角色/状态）、爬虫任务面板、导入/推荐日志
-- **推荐系统**：Content-Based + Item-Based CF + LLM 三策略融合的离线计算框架（默认关闭）
-- **AI 推荐**：接入小米 MiMO 大模型，支持多轮聊天对话和基于用户画像的一键推荐
+- **推荐系统**：Content-Based + Item-Based CF + LLM 三策略融合的离线计算框架
 - **爬虫**：Java 调度 + Python 执行，4 个定时任务（榜单/评论/年度/数据增强）
 
 ---
@@ -29,7 +42,7 @@
 | 后端 | Spring Boot 3.4.4 · Spring Security · MyBatis-Plus 3.5.10 · JJWT 0.12 · Knife4j 4.5 · Lombok |
 | 数据 | MySQL 8 · Redis 7 |
 | 爬虫 | Python 3.x（由 Java 端 `ProcessBuilder` 拉起） |
-| LLM 可选 | MiMO（小米大模型，默认） / Gemini / OpenAI / Claude（按 API key 可用降级） |
+| **LLM（核心）** | **MiMO（小米大模型，默认主力）** / Gemini / OpenAI / Claude（按 API key 可用降级） |
 | 部署 | Docker Compose（MySQL + Redis） |
 | JDK | 17+（Maven 用仓库自带的 mvnw wrapper） |
 
@@ -159,6 +172,25 @@ moveme/
 | 管理后台 + 用户中心 + Vue 3 前端 | 完成 |
 | LLM 推荐接入（MiMO 大模型，聊天 + 一键推荐） | 完成 |
 | A/B 测试 / 在线推荐 | 路线图（见 [20-后续路线图](./docs/20-后续路线图.md)） |
+
+---
+
+## MiMO 大模型使用情况
+
+| 指标 | 数据 |
+|---|---|
+| MiMO 累计消耗 | **10 亿+ Token** |
+| DeepSeek 累计消耗 | 4-5 亿 Token |
+| 合计总消耗 | **15 亿+ Token** |
+| 日均消耗 | **1-2 亿 Token** |
+| 单次推荐请求 | 8,000-15,000 Token（注入用户画像 + 500 部电影目录 → 长链推理） |
+
+**为什么选 MiMO**：中文理解能力强、性价比高、OpenAI 兼容格式接入成本低。
+
+**AI 推荐核心链路**：
+1. **一键推荐（长链推理）**：注入用户观影画像 + 完整电影目录 → MiMO 分析口味 → 筛选匹配 → 精选唯一一部 → 生成推荐理由 + 剧情解读 + 风格分析 → 正则匹配电影名称自动注入跳转链接
+2. **自由聊天（多轮上下文）**：自然语言对话，完整对话历史传入 MiMO，支持多轮连续对话
+3. **Agent 流水线（规划中）**：爬虫采集 → MiMO 分析风格/标签 → 自动生成推荐语 → 写入数据库
 
 ---
 

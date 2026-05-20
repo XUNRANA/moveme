@@ -151,7 +151,10 @@
       "Bash(mysql *)",
       "Bash(dir \"C:\\\\Users\\\\xunra\\\\Desktop\\\\moveme\\\\moveme-frontend\" /a)",
       "mcp__plugin_playwright_playwright__browser_fill_form",
-      "mcp__plugin_playwright_playwright__browser_press_key"
+      "mcp__plugin_playwright_playwright__browser_press_key",
+      "Bash(Get-ChildItem *)",
+      "Bash(xargs grep -l \"@Scheduled\")",
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && ls {} 2>/dev/null')"
     ]
   }
 }

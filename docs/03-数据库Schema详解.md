@@ -1,4 +1,4 @@
-# 03 - 数据库 Schema 详解（v2，38 张表）
+# 03 - 数据库 Schema 详解（v2，40+ 张表）
 
 > 这是 v2 schema 的逐表说明。所有 DDL 在 `docker/mysql/init/01-schema.sql`，本文档讲**每张表为什么这样设计、字段语义、索引取舍**。
 
@@ -7,17 +7,19 @@
 ## 0. 总览
 
 ```
-8 个域 × 共 38 张表
+8 个域 × 共 40+ 张表
 
 域 1：用户域（1）          users
 域 2：内容字典域（5）      genres / countries / languages / tags / award_ceremonies
 域 3：内容主域（2）        movies / persons
 域 4：关联表域（7）        movie_{genre,country,language,tag,director,writer,actor}
-域 5：富字段域（8）        movie_top250 / aka / release_date / award / related / comment / rating_dist / genre_rank
+域 5：富字段域（10）       movie_top250 / aka / release_date / award / related / play_link /
+                          comment / comment_vote / rating_dist / genre_rank
 域 6：用户行为域（4）      ratings / favorites / view_history / search_history
 域 7：推荐特征域（8）      movie_features / user_features / user_genre_pref / user_person_pref /
                           movie_similarity / movie_co_occurrence / user_reco_cache / llm_reco_log
 域 8：系统日志域（3）      crawl_logs / recommendation_logs / import_logs
+扩展：                     movie_annual（年度榜，独立表，按 year 索引）
 ```
 
 ---
@@ -200,6 +202,33 @@
 - `FULLTEXT ft_content WITH PARSER ngram` —— 短评全文搜索（"演技""特效"）
 
 **为什么 source 字段而非两张表**：80% 的查询是"这部电影所有短评"，不分源；放一起 + idx_movie_votes 一次扫描搞定。
+
+### 5.6.1 `comment_vote` 站内点赞明细
+
+| 字段 | 说明 |
+|---|---|
+| id | PK |
+| comment_id | FK movie_comment |
+| user_id | FK users |
+| (comment_id, user_id) | UNIQUE，一人对一条评论只点一次 |
+| created_at | |
+
+**为什么不直接 `movie_comment.votes++` 然后扔掉记录**：
+- 站内用户需要"取消点赞"，需要明细才能找到对应行删除。
+- 反作弊（同 user 多次刷赞）UNIQUE 唯一约束直接拦。
+- 同时 `movie_comment.votes` 仍保留作为汇总列，新增/取消时同步 ±1（事务内）。
+
+### 5.6.2 `movie_play_link` 播放链接
+
+| 字段 | 说明 |
+|---|---|
+| id | PK |
+| movie_id | FK |
+| platform | VARCHAR（爱奇艺/腾讯视频/B站/...） |
+| url | VARCHAR(500) |
+| sort_order | |
+
+详情页底部"在哪里能看"展示。MovieMe 不持有版权、不嵌入播放器，只是把链接挂出来跳转。
 
 ### 5.7 `movie_rating_dist` 5 星分布
 - 一部电影 5 行（star=1..5）

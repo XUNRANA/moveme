@@ -1,6 +1,6 @@
-# 14 - Phase B：代码实现讲解（逐方法 walkthrough）
+# 历史 - Phase B：代码实现讲解（逐方法 walkthrough）
 
-> 配合 [13 - 业务逻辑实现细节](./13-Phase-B-业务逻辑实现细节.md)。
+> 配合 [历史-Phase-B-业务逻辑细节](./历史-Phase-B-业务逻辑细节.md)。
 >
 > Phase B 现在已经完整实现 —— 17 个 stub 全部填好。本文按方法顺序讲**为什么这么写**：
 > 设计取舍、数据陷阱、性能考虑、可调优点。
@@ -674,4 +674,4 @@ WHERE m.douban_id='1292052';
 | `module/movie/mapper/PersonMapper.java` | 含 recalcMovieCount/recalcAvgMovieRating |
 | `module/movie/mapper/MovieRelatedMapper.java` | 含 backfillRelatedMovieIds |
 
-完成 Phase B 后跳到 [12 - Phase C 实现指南](./12-Phase-C-推荐特征计算实现指南.md) 写推荐特征计算。
+完成 Phase B 后跳到 [41-推荐特征计算](./41-推荐特征计算.md) 写推荐特征计算。

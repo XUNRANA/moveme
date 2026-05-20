@@ -2,7 +2,7 @@
 
 > 电影浏览 + 个性化推荐 + 管理后台的全栈学习项目。
 >
-> Spring Boot 3.4 · Vue 3.5 · MySQL 8 · Redis 7 · Docker · 40+ 张表 · 25 个前端组件 · 40+ REST 端点
+> Spring Boot 3.4 · Vue 3.5 · MySQL 8 · Redis 7 · Docker · MiMO LLM · 40+ 张表 · 25 个前端组件 · 40+ REST 端点
 
 ---
 
@@ -16,6 +16,7 @@
 - **用户中心**：个人档案、收藏（想看/已看）、评分、浏览历史、口味档案（类型/演员偏好）
 - **管理后台**：系统统计、用户管理（角色/状态）、爬虫任务面板、导入/推荐日志
 - **推荐系统**：Content-Based + Item-Based CF + LLM 三策略融合的离线计算框架（默认关闭）
+- **AI 推荐**：接入小米 MiMO 大模型，支持多轮聊天对话和基于用户画像的一键推荐
 - **爬虫**：Java 调度 + Python 执行，4 个定时任务（榜单/评论/年度/数据增强）
 
 ---
@@ -28,7 +29,7 @@
 | 后端 | Spring Boot 3.4.4 · Spring Security · MyBatis-Plus 3.5.10 · JJWT 0.12 · Knife4j 4.5 · Lombok |
 | 数据 | MySQL 8 · Redis 7 |
 | 爬虫 | Python 3.x（由 Java 端 `ProcessBuilder` 拉起） |
-| LLM 可选 | Gemini / OpenAI / Claude（按 API key 可用降级） |
+| LLM 可选 | MiMO（小米大模型，默认） / Gemini / OpenAI / Claude（按 API key 可用降级） |
 | 部署 | Docker Compose（MySQL + Redis） |
 | JDK | 17+（Maven 用仓库自带的 mvnw wrapper） |
 
@@ -109,15 +110,16 @@ moveme/
 │           ├── movie/                 # 电影/人物/榜单/评论
 │           ├── admin/                 # 管理后台
 │           ├── crawler/               # 豆瓣爬虫（Java 调度 + Python 执行）
+│           ├── recommend/             # AI 推荐（MiMO 大模型接入）
 │           └── seed/                  # JSON 种子导入
 ├── moveme-frontend/                   # Vue 3.5 + Vite 5 + Tailwind 4
 │   ├── package.json
 │   └── src/
-│       ├── views/                     # 11 个页面
+│       ├── views/                     # 12 个页面
 │       ├── components/                # 25 个业务组件（admin/user/movie/layout/common）
 │       ├── stores/user.ts             # Pinia
 │       ├── api/movies.ts              # API 层
-│       ├── router/index.ts            # 11 条路由 + 守卫
+│       ├── router/index.ts            # 12 条路由 + 守卫
 │       ├── directives/vAnimate.ts     # 滚动触发动画
 │       └── assets/styles/             # 设计 token
 └── docs/                              # 文档（入口 docs/README.md）
@@ -136,7 +138,7 @@ moveme/
 | 项目概述 | [01-项目概述与架构设计](./docs/01-项目概述与架构设计.md) |
 | 环境搭建 | [02-环境搭建与运行指南](./docs/02-环境搭建与运行指南.md) |
 | 数据库 | [03-数据库 Schema 详解](./docs/03-数据库Schema详解.md) · [40-种子导入器](./docs/40-种子导入器.md) |
-| 推荐系统 | [04-推荐系统总体设计](./docs/04-推荐系统总体设计.md) · [05-推荐算法详解](./docs/05-推荐算法详解.md) · [41-推荐特征计算](./docs/41-推荐特征计算.md) |
+| 推荐系统 | [04-推荐系统总体设计](./docs/04-推荐系统总体设计.md) · [05-推荐算法详解](./docs/05-推荐算法详解.md) · [41-推荐特征计算](./docs/41-推荐特征计算.md) · [34-AI推荐功能说明](./docs/34-AI推荐功能说明.md) |
 | 接口与前端 | [30-REST API 参考](./docs/30-REST-API参考.md) · [31-前端架构与组件库](./docs/31-前端架构与组件库.md) |
 | 业务指南 | [32-管理后台使用指南](./docs/32-管理后台使用指南.md) · [33-用户中心功能说明](./docs/33-用户中心功能说明.md) |
 | 运维 | [90-常见问题与故障排查](./docs/90-常见问题与故障排查.md) · [91-开发命令速查](./docs/91-开发命令速查.md) |
@@ -153,9 +155,10 @@ moveme/
 | 数据库 v2（40+ 张表 / 8 域） | 完成 |
 | JSON 种子导入（`top250.json` → 38+ 表） | 完成 |
 | 推荐特征 / 相似度 / 共现 Calculator | 完成（默认关闭） |
-| REST API（40+ 端点 / 5 个 Controller） | 完成 |
+| REST API（40+ 端点 / 6 个 Controller） | 完成 |
 | 管理后台 + 用户中心 + Vue 3 前端 | 完成 |
-| A/B 测试 / 在线推荐 / LLM 接入 | 路线图（见 [20-后续路线图](./docs/20-后续路线图.md)） |
+| LLM 推荐接入（MiMO 大模型，聊天 + 一键推荐） | 完成 |
+| A/B 测试 / 在线推荐 | 路线图（见 [20-后续路线图](./docs/20-后续路线图.md)） |
 
 ---
 

@@ -2,7 +2,7 @@
 
 > MovieMe 是一个基于豆瓣 Top250 数据的电影浏览与个性化推荐系统。Spring Boot 3.4 + Vue 3.5 + MySQL 8 + Redis 7。
 >
-> 当前状态：**Phase A/B/C/D 全部完成**——数据库 v2、种子导入、推荐特征框架、REST API、管理后台、用户中心、Vue 3 前端全部上线。推荐服务的离线计算默认关闭（`moveme.recommendation.enabled=false`），按需开启。
+> 当前状态：**Phase A/B/C/D/F 全部完成**——数据库 v2、种子导入、推荐特征框架、REST API、管理后台、用户中心、Vue 3 前端全部上线。Phase F LLM 推荐已接入小米 MiMO 大模型。推荐服务的离线计算默认关闭（`moveme.recommendation.enabled=false`），按需开启。
 
 ---
 
@@ -21,6 +21,7 @@
 6. [04 - 推荐系统总体设计](./04-推荐系统总体设计.md) — 三策略融合、冷启动、缓存
 7. [05 - 推荐算法详解](./05-推荐算法详解.md) — TF-IDF / 余弦 / PMI / KMeans 数学与 Java 实现要点
 8. [41 - 推荐特征计算](./41-推荐特征计算.md) — Phase C 模块结构与 Calculator 接口
+9. [34 - AI 推荐功能说明](./34-AI推荐功能说明.md) — MiMO 大模型接入、聊天 + 一键推荐
 
 ### 接口与前端
 9. [30 - REST API 参考](./30-REST-API参考.md) — 全部 7 个模块、40+ 端点的可读版接口手册
@@ -53,6 +54,7 @@
 | Phase B | JSON 种子导入器（`top250.json` → DB） | 已完成 |
 | Phase C | 推荐特征/相似度/共现计算（Calculator 框架） | 已完成，默认关闭 |
 | Phase D | REST API + 管理后台 + 用户中心 + Vue 3 前端 | 已完成 |
+| Phase F | LLM 推荐接入（MiMO 大模型，聊天 + 一键推荐） | 已完成 |
 | Phase E+ | A/B 测试、向量化、社交、运营工具 | 见 [20-后续路线图](./20-后续路线图.md) |
 
 ---
@@ -79,6 +81,7 @@ moveme/
 │           ├── movie/                   # 电影、人物、榜单、评论
 │           ├── admin/                   # 管理后台
 │           ├── crawler/                 # 豆瓣爬虫（Java 调度 + Python 执行）
+│           ├── recommend/               # AI 推荐（MiMO 大模型接入）
 │           └── seed/                    # JSON 种子导入
 ├── moveme-frontend/                     # Vue 3.5 + Vite 5 + Tailwind 4
 │   └── src/

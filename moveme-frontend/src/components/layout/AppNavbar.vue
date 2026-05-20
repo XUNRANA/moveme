@@ -10,6 +10,7 @@
       <!-- Nav Links -->
       <div class="nav-links">
         <router-link to="/" class="nav-link" :class="{ active: $route.path === '/' }">发现</router-link>
+        <router-link to="/recommend" class="nav-link" :class="{ active: $route.path.startsWith('/recommend') }">AI 推荐</router-link>
         <router-link to="/top250" class="nav-link" :class="{ active: $route.path === '/top250' }">TOP250</router-link>
         <router-link to="/boards" class="nav-link" :class="{ active: $route.path === '/boards' }">榜单</router-link>
         <router-link to="/charts" class="nav-link" :class="{ active: $route.path === '/charts' }">分类</router-link>

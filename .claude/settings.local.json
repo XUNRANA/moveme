@@ -154,7 +154,9 @@
       "mcp__plugin_playwright_playwright__browser_press_key",
       "Bash(Get-ChildItem *)",
       "Bash(xargs grep -l \"@Scheduled\")",
-      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && ls {} 2>/dev/null')"
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && ls {} 2>/dev/null')",
+      "Bash(Select-Object FullName)",
+      "Bash(setx MIMO_API_KEY *)"
     ]
   }
 }

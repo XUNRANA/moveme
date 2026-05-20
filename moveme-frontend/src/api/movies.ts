@@ -510,3 +510,23 @@ export async function getAdminRecoLogs(page = 1, size = 20) {
   const res = await request.get('/admin/reco-logs', { params: { page, size } }) as ApiEnvelope<PageResponse<RecoLogItem>>
   return res.data
 }
+
+// ============ AI 推荐 ============
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+export async function quickRecommend() {
+  const res = await request.post('/recommend/quick') as ApiEnvelope<string>
+  return res.data
+}
+
+/**
+ * 聊天推荐 — 非流式（通过 axios，稳定可靠）
+ */
+export async function chatRecommend(messages: ChatMessage[]): Promise<string> {
+  const res = await request.post('/recommend/chat', { messages }) as ApiEnvelope<string>
+  return res.data
+}

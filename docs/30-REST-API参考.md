@@ -332,7 +332,38 @@ Body（`CrawlTriggerReq`）：
 
 ---
 
-## 8. 常见错误对照
+## 8. AI 推荐（RecommendController · `/api/v1/recommend`）
+
+> 全部需登录。基于小米 MiMO 大模型，详见 [34-AI推荐功能说明](./34-AI推荐功能说明.md)。
+
+### POST `/recommend/chat`
+聊天推荐（非流式）。
+
+请求体：
+```json
+{
+  "messages": [
+    { "role": "user", "content": "推荐几部高分悬疑片" }
+  ]
+}
+```
+`messages` 支持多轮对话，传入完整消息历史。
+
+响应：`Result<String>`，data 是 AI 回复的 markdown 文本。回复中如果提及数据库中的电影，会自动附上详情页链接 `[片名](/movies/{id})`。
+
+### POST `/recommend/chat/stream`
+聊天推荐（SSE 流式）。请求体同上。
+
+响应：`text/event-stream`，每个 token 作为一个 SSE event 推送，结束时发送 `event: done`。
+
+### POST `/recommend/quick`
+一键推荐。无需请求体，系统自动构建用户画像 + 片单 prompt。
+
+响应：`Result<String>`，data 是 AI 推荐的 markdown 文本（一部电影的详细介绍 + 详情页链接）。
+
+---
+
+## 9. 常见错误对照
 
 | 现象 | 可能原因 | 解决 |
 |---|---|---|
@@ -344,7 +375,7 @@ Body（`CrawlTriggerReq`）：
 
 ---
 
-## 9. 与 Knife4j 的关系
+## 10. 与 Knife4j 的关系
 
 Knife4j（`/doc.html`）是接口的"机器视角"，参数/字段全部自动生成。本文档是"人类视角"，强调权限分组、典型用法与设计意图。
 - 调试用 Knife4j 直接 Try it out

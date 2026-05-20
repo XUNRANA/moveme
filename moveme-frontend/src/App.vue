@@ -9,7 +9,7 @@
         </Transition>
       </router-view>
     </main>
-    <AppFooter />
+    <AppFooter v-if="!$route.path.startsWith('/recommend')" />
     <SearchOverlay :visible="showSearch" @close="showSearch = false" @search="onSearch" />
   </div>
 </template>

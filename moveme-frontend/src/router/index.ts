@@ -61,6 +61,12 @@ const router = createRouter({
       component: () => import('../views/admin/AdminDashboard.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
+    {
+      path: '/recommend/:id?',
+      name: 'Recommend',
+      component: () => import('../views/Recommend.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

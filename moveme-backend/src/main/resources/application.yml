@@ -108,6 +108,10 @@ moveme:
     claude:
       api-key: ${CLAUDE_API_KEY:}
       model: claude-sonnet-4-20250514
+    mimo:
+      api-key: ${MIMO_API_KEY:}
+      model: mimo-v2.5-pro
+      base-url: https://token-plan-cn.xiaomimimo.com/v1
 
 # Knife4j
 springdoc:
@@ -123,3 +127,4 @@ logging:
   level:
     com.moveme: debug
     com.baomidou.mybatisplus: debug
+    com.baomidou.mybatisplus.core.injector.DefaultSqlInjector: error

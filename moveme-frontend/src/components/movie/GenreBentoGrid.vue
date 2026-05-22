@@ -1,6 +1,6 @@
 <template>
   <section class="bento-section">
-    <SectionTitle title="分类宇宙" to="/charts" />
+    <SectionTitle title="分类宇宙" :to="to" />
     <div class="bento-grid">
       <router-link
         v-for="(genre, i) in genres"
@@ -27,6 +27,7 @@ import SectionTitle from '../common/SectionTitle.vue'
 
 defineProps<{
   genres: GenreCard[]
+  to?: string
 }>()
 </script>
 

@@ -25,7 +25,7 @@
 
     <!-- Genre Bento Grid -->
     <div v-animate class="home-section">
-      <GenreBentoGrid :genres="genres" />
+      <GenreBentoGrid :genres="genres" to="/charts" />
     </div>
 
     <!-- Annual Timeline -->

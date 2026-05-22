@@ -85,6 +85,14 @@ watch(selectedYear, (y) => {
   }
 })
 
+// 浏览器前进/后退、或从导航栏点击不同年份时同步
+watch(() => route.params.year, (newYear) => {
+  const y = Number(newYear)
+  if (y && y !== selectedYear.value) {
+    selectedYear.value = y
+  }
+})
+
 onMounted(async () => {
   try {
     years.value = await listAnnualYears()

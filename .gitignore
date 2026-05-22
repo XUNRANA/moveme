@@ -37,10 +37,13 @@ __pycache__/
 .claude/
 
 # Crawler (standalone utility, not part of main app)
-crawler/
+/crawler/
+
+# Data assets (images, not for version control)
+moveme-backend/data/
 
 # Root-level working files
-*.png
+# *.png
 *.jpg
 missing_data.txt
 前端UI审计报告.md
